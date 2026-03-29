@@ -3,21 +3,22 @@ package keys
 import "github.com/charmbracelet/bubbles/key"
 
 type KeyMap struct {
-	Up        key.Binding
-	Down      key.Binding
-	Top       key.Binding
-	Bottom    key.Binding
-	NextTab   key.Binding
-	PrevTab   key.Binding
-	Toggle    key.Binding
-	Push      key.Binding
-	Filter    key.Binding
-	AddTask   key.Binding
-	Reload    key.Binding
-	Quit      key.Binding
-	Escape    key.Binding
-	Backspace key.Binding
-	Enter     key.Binding
+	Up         key.Binding
+	Down       key.Binding
+	Top        key.Binding
+	Bottom     key.Binding
+	NextTab    key.Binding
+	PrevTab    key.Binding
+	Toggle     key.Binding
+	Push       key.Binding
+	Filter     key.Binding
+	AddTask    key.Binding
+	Reload     key.Binding
+	ToggleView key.Binding
+	Quit       key.Binding
+	Escape     key.Binding
+	Backspace  key.Binding
+	Enter      key.Binding
 }
 
 var DefaultKeyMap = KeyMap{
@@ -65,6 +66,10 @@ var DefaultKeyMap = KeyMap{
 		key.WithKeys("r"),
 		key.WithHelp("r", "reload"),
 	),
+	ToggleView: key.NewBinding(
+		key.WithKeys("v"),
+		key.WithHelp("v", "view"),
+	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
 		key.WithHelp("q", "quit"),
@@ -83,5 +88,5 @@ var DefaultKeyMap = KeyMap{
 
 // BrowserHelp returns the help text for the browser mode status bar.
 func BrowserHelp() string {
-	return "  ↑/k ↓/j navigate  enter: toggle  p: push caldav  /: filter  a: add  tab: switch  r: reload  q: quit"
+	return "  ↑/k ↓/j navigate  enter: toggle  p: push caldav  /: filter  a: add  v: view  tab: switch  r: reload  q: quit"
 }

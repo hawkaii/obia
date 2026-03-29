@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hawkaii/obia/internal/task"
 	"github.com/hawkaii/obia/internal/tui/components/section"
+	"github.com/sahilm/fuzzy"
 )
 
 // FilterFunc decides which tasks belong in this section.
@@ -23,6 +24,7 @@ type Model struct {
 	dailyFormat string
 	filtered    []task.Task
 	search      string
+	grouped     bool
 }
 
 var _ section.Section = (*Model)(nil)
@@ -49,7 +51,14 @@ func (m *Model) NumRows() int       { return len(m.filtered) }
 
 func (m *Model) SetSearch(query string) {
 	m.search = query
-	// SetTasks must have been called already; re-filter with search
+}
+
+func (m *Model) ToggleGrouped() {
+	m.grouped = !m.grouped
+}
+
+func (m *Model) IsGrouped() bool {
+	return m.grouped
 }
 
 func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
@@ -57,12 +66,18 @@ func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 }
 
 func (m *Model) View(width, height, cursor int, selected bool) string {
-	var b strings.Builder
-
 	if len(m.filtered) == 0 {
-		b.WriteString("  No tasks\n")
-		return b.String()
+		return "  No tasks\n"
 	}
+
+	if m.grouped {
+		return m.viewGrouped(width, height, cursor, selected)
+	}
+	return m.viewFlat(width, height, cursor, selected)
+}
+
+func (m *Model) viewFlat(width, height, cursor int, selected bool) string {
+	var b strings.Builder
 
 	start := 0
 	if cursor >= height {
@@ -104,26 +119,93 @@ func (m *Model) View(width, height, cursor int, selected bool) string {
 	return b.String()
 }
 
+func (m *Model) viewGrouped(width, height, cursor int, selected bool) string {
+	// Build display lines: headers + task rows
+	type displayLine struct {
+		isHeader  bool
+		taskIndex int // -1 for headers
+		text      string
+	}
+
+	var lines []displayLine
+	lastFile := ""
+	for i, t := range m.filtered {
+		relPath := t.RelativePath(m.vaultPath)
+		if relPath != lastFile {
+			sep := strings.Repeat("─", width-len(relPath)-5)
+			header := fileHeaderStyle.Render(fmt.Sprintf("── %s %s", relPath, sep))
+			lines = append(lines, displayLine{isHeader: true, taskIndex: -1, text: header})
+			lastFile = relPath
+		}
+
+		checkbox := "[ ]"
+		style := taskTodoStyle
+		if t.IsDone() {
+			checkbox = "[x]"
+			style = taskDoneStyle
+		}
+
+		row := style.Render(fmt.Sprintf("    %s %s", checkbox, t.Description))
+		if selected && i == cursor {
+			row = selectedStyle.Width(width).Render(row)
+		}
+		lines = append(lines, displayLine{isHeader: false, taskIndex: i, text: row})
+	}
+
+	// Find which display line corresponds to the cursor's task
+	cursorDisplayLine := 0
+	for i, l := range lines {
+		if !l.isHeader && l.taskIndex == cursor {
+			cursorDisplayLine = i
+			break
+		}
+	}
+
+	// Scroll window
+	start := 0
+	if cursorDisplayLine >= height {
+		start = cursorDisplayLine - height + 1
+	}
+	end := start + height
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	var b strings.Builder
+	for i := start; i < end; i++ {
+		b.WriteString(lines[i].text)
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
 func (m *Model) applySearch() {
 	if m.search == "" {
 		return
 	}
-	query := strings.ToLower(m.search)
-	var out []task.Task
-	for _, t := range m.filtered {
-		if strings.Contains(strings.ToLower(t.Description), query) {
-			out = append(out, t)
-		}
+	source := taskSource(m.filtered)
+	matches := fuzzy.FindFrom(m.search, source)
+	out := make([]task.Task, 0, len(matches))
+	for _, match := range matches {
+		out = append(out, m.filtered[match.Index])
 	}
 	m.filtered = out
 }
 
+// taskSource wraps []task.Task to implement fuzzy.Source.
+type taskSource []task.Task
+
+func (t taskSource) String(i int) string { return t[i].Description }
+func (t taskSource) Len() int            { return len(t) }
+
 // Styles used by the task section renderer.
 var (
-	taskTodoStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	taskDoneStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Strikethrough(true)
-	selectedStyle = lipgloss.NewStyle().Background(lipgloss.Color("236")).Bold(true)
-	sourceStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	taskTodoStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	taskDoneStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Strikethrough(true)
+	selectedStyle   = lipgloss.NewStyle().Background(lipgloss.Color("236")).Bold(true)
+	sourceStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	fileHeaderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true)
 )
 
 // --- Built-in filter functions ---
