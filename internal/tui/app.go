@@ -4,72 +4,117 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/hawkaii/obia/internal/caldav"
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hawkaii/obia/internal/config"
 	"github.com/hawkaii/obia/internal/task"
-	"github.com/hawkaii/obia/internal/vault"
+	appctx "github.com/hawkaii/obia/internal/tui/context"
+	"github.com/hawkaii/obia/internal/tui/keys"
+	"github.com/hawkaii/obia/internal/tui/components/section"
+	"github.com/hawkaii/obia/internal/tui/components/tasksection"
 )
 
-type mode int
+// appMode controls which top-level mode the TUI is in.
+type appMode int
 
 const (
-	modeNormal mode = iota
-	modeFilter
-	modeAddTask
+	modeBrowser appMode = iota
+	// modeChat — future
+)
+
+// inputMode controls what the text input is doing.
+type inputMode int
+
+const (
+	inputNone inputMode = iota
+	inputFilter
+	inputAddTask
 )
 
 type App struct {
-	cfg       config.Config
-	allTasks  []task.Task
-	filtered  []task.Task
-	activeTab Tab
-	cursor    int
-	width     int
-	height    int
-	mode      mode
+	ctx       *appctx.ProgramContext
+	keys      keys.KeyMap
+	mode      appMode
+	inputMode inputMode
 	input     string
 	message   string
+
+	// Browser state
+	allTasks  []task.Task
+	sections  []section.Section
+	activeTab int
+	cursor    int
 	loading   bool
 }
 
 func NewApp(cfg config.Config) App {
-	return App{
-		cfg:       cfg,
-		activeTab: TabTasks,
-		loading:   true,
+	ctx := appctx.New(cfg)
+
+	vp := cfg.Vault.Path
+	df := cfg.Vault.DailyNotesFolder
+	dfmt := cfg.Vault.DailyNotesFormat
+
+	sections := []section.Section{
+		tasksection.New("Tasks", vp, df, dfmt, tasksection.FilterOpen),
+		tasksection.New("Today", vp, df, dfmt, tasksection.FilterToday),
+		tasksection.New("Overdue", vp, df, dfmt, tasksection.FilterOverdue),
+		tasksection.New("CalDAV", vp, df, dfmt, tasksection.FilterCalDAV),
 	}
-}
 
-type tasksLoadedMsg struct {
-	tasks []task.Task
-}
-
-func loadTasks(vaultPath string) tea.Cmd {
-	return func() tea.Msg {
-		tasks, err := vault.ParseAllTasks(vaultPath)
-		if err != nil {
-			return tasksLoadedMsg{}
-		}
-		return tasksLoadedMsg{tasks: tasks}
+	return App{
+		ctx:      ctx,
+		keys:     keys.DefaultKeyMap,
+		mode:     modeBrowser,
+		sections: sections,
+		loading:  true,
 	}
 }
 
 func (a App) Init() tea.Cmd {
-	return loadTasks(a.cfg.Vault.Path)
+	return LoadTasksCmd(a.ctx.VaultPath())
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		a.width = msg.Width
-		a.height = msg.Height
+		a.ctx.SetSize(msg.Width, msg.Height)
 
-	case tasksLoadedMsg:
-		a.allTasks = msg.tasks
+	case TasksLoadedMsg:
+		if msg.Err != nil {
+			a.message = "Error loading tasks: " + msg.Err.Error()
+		} else {
+			a.allTasks = msg.Tasks
+			a.refreshSections()
+		}
 		a.loading = false
-		a.applyFilter()
+
+	case TaskToggledMsg:
+		if msg.Err != nil {
+			a.message = "Error: " + msg.Err.Error()
+		} else {
+			msg.Task.Toggle()
+			a.syncBack(msg.Task)
+			a.refreshSections()
+			a.message = "Toggled task"
+		}
+
+	case TaskAddedMsg:
+		if msg.Err != nil {
+			a.message = "Error: " + msg.Err.Error()
+		} else {
+			a.message = "Added: " + msg.Description
+		}
+		return a, LoadTasksCmd(a.ctx.VaultPath())
+
+	case CalDAVPushedMsg:
+		if msg.Err != nil {
+			a.message = "CalDAV push error: " + msg.Err.Error()
+		} else {
+			msg.Task.CalDAVUID = msg.UID
+			a.syncBack(msg.Task)
+			a.refreshSections()
+			a.message = "Pushed to CalDAV: " + msg.Task.Description
+		}
 
 	case tea.KeyMsg:
 		return a.handleKey(msg)
@@ -79,137 +124,118 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	key := msg.String()
-
-	switch a.mode {
-	case modeFilter:
-		return a.handleFilterKey(key, msg)
-	case modeAddTask:
-		return a.handleAddTaskKey(key, msg)
+	switch a.inputMode {
+	case inputFilter:
+		return a.handleFilterKey(msg)
+	case inputAddTask:
+		return a.handleAddTaskKey(msg)
 	default:
-		return a.handleNormalKey(key)
+		return a.handleBrowserKey(msg)
 	}
 }
 
-func (a App) handleNormalKey(key string) (tea.Model, tea.Cmd) {
-	switch key {
-	case "q", "ctrl+c":
+func (a App) handleBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, a.keys.Quit):
 		return a, tea.Quit
 
-	case "j", "down":
-		if a.cursor < len(a.filtered)-1 {
+	case key.Matches(msg, a.keys.Down):
+		if a.cursor < a.activeSection().NumRows()-1 {
 			a.cursor++
 		}
 
-	case "k", "up":
+	case key.Matches(msg, a.keys.Up):
 		if a.cursor > 0 {
 			a.cursor--
 		}
 
-	case "g":
+	case key.Matches(msg, a.keys.Top):
 		a.cursor = 0
 
-	case "G":
-		if len(a.filtered) > 0 {
-			a.cursor = len(a.filtered) - 1
+	case key.Matches(msg, a.keys.Bottom):
+		if n := a.activeSection().NumRows(); n > 0 {
+			a.cursor = n - 1
 		}
 
-	case "tab":
-		a.activeTab = (a.activeTab + 1) % tabCount
-		a.applyFilter()
+	case key.Matches(msg, a.keys.NextTab):
+		a.activeTab = (a.activeTab + 1) % len(a.sections)
 		a.cursor = 0
+		a.refreshSections()
 
-	case "shift+tab":
-		a.activeTab = (a.activeTab - 1 + tabCount) % tabCount
-		a.applyFilter()
+	case key.Matches(msg, a.keys.PrevTab):
+		a.activeTab = (a.activeTab - 1 + len(a.sections)) % len(a.sections)
 		a.cursor = 0
+		a.refreshSections()
 
-	case "enter":
-		if a.cursor < len(a.filtered) {
-			t := &a.filtered[a.cursor]
-			if err := vault.ToggleTask(t); err != nil {
-				a.message = "Error: " + err.Error()
-			} else {
-				t.Toggle()
-				a.syncBack(t)
-				a.message = "Toggled task"
-			}
-			a.applyFilter()
+	case key.Matches(msg, a.keys.Toggle):
+		tasks := a.activeSection().Tasks()
+		if a.cursor < len(tasks) {
+			t := &tasks[a.cursor]
+			return a, ToggleTaskCmd(t)
 		}
 
-	case "/":
-		a.mode = modeFilter
+	case key.Matches(msg, a.keys.Filter):
+		a.inputMode = inputFilter
 		a.input = ""
 
-	case "a":
-		a.mode = modeAddTask
+	case key.Matches(msg, a.keys.AddTask):
+		a.inputMode = inputAddTask
 		a.input = ""
 
-	case "p":
-		if a.cursor < len(a.filtered) && a.cfg.CalDAV.URL != "" {
-			t := &a.filtered[a.cursor]
-			uid, err := caldav.PushTask(a.cfg.CalDAV, t)
-			if err != nil {
-				a.message = "CalDAV push error: " + err.Error()
-			} else {
-				t.CalDAVUID = uid
-				a.syncBack(t)
-				a.message = "Pushed to CalDAV: " + t.Description
-			}
-		} else if a.cfg.CalDAV.URL == "" {
+	case key.Matches(msg, a.keys.Push):
+		tasks := a.activeSection().Tasks()
+		if a.cursor < len(tasks) && a.ctx.Config.CalDAV.URL != "" {
+			t := &tasks[a.cursor]
+			return a, PushCalDAVCmd(a.ctx.Config.CalDAV, t)
+		} else if a.ctx.Config.CalDAV.URL == "" {
 			a.message = "CalDAV not configured"
 		}
 
-	case "r":
+	case key.Matches(msg, a.keys.Reload):
 		a.loading = true
-		return a, loadTasks(a.cfg.Vault.Path)
+		return a, LoadTasksCmd(a.ctx.VaultPath())
 	}
 
 	return a, nil
 }
 
-func (a App) handleFilterKey(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch key {
-	case "enter":
-		a.applyFilter()
-		a.mode = modeNormal
-	case "esc":
+func (a App) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, a.keys.Enter):
+		a.inputMode = inputNone
+	case key.Matches(msg, a.keys.Escape):
 		a.input = ""
-		a.mode = modeNormal
-		a.applyFilter()
-	case "backspace":
+		a.inputMode = inputNone
+		a.refreshSections()
+	case key.Matches(msg, a.keys.Backspace):
 		if len(a.input) > 0 {
 			a.input = a.input[:len(a.input)-1]
 		}
-		a.applyFilter()
+		a.applySearch()
 	default:
 		if len(msg.Runes) > 0 {
 			a.input += string(msg.Runes)
-			a.applyFilter()
+			a.applySearch()
 		}
 	}
 	return a, nil
 }
 
-func (a App) handleAddTaskKey(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch key {
-	case "enter":
+func (a App) handleAddTaskKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, a.keys.Enter):
 		if a.input != "" {
-			filePath := a.cfg.Vault.Path + "/" + a.cfg.Vault.DefaultTaskFile
-			if err := vault.AppendTask(filePath, a.input); err != nil {
-				a.message = "Error: " + err.Error()
-			} else {
-				a.message = "Added: " + a.input
-			}
+			filePath := a.ctx.VaultPath() + "/" + a.ctx.Config.Vault.DefaultTaskFile
+			desc := a.input
 			a.input = ""
-			a.mode = modeNormal
-			return a, loadTasks(a.cfg.Vault.Path)
+			a.inputMode = inputNone
+			return a, AddTaskCmd(filePath, desc)
 		}
-		a.mode = modeNormal
-	case "esc":
+		a.inputMode = inputNone
+	case key.Matches(msg, a.keys.Escape):
 		a.input = ""
-		a.mode = modeNormal
-	case "backspace":
+		a.inputMode = inputNone
+	case key.Matches(msg, a.keys.Backspace):
 		if len(a.input) > 0 {
 			a.input = a.input[:len(a.input)-1]
 		}
@@ -221,44 +247,49 @@ func (a App) handleAddTaskKey(key string, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) applyFilter() {
-	tabFiltered := filterTasksForTab(a.allTasks, a.activeTab, a.cfg.Vault.DailyNotesFolder, a.cfg.Vault.DailyNotesFormat)
+func (a *App) activeSection() section.Section {
+	return a.sections[a.activeTab]
+}
 
-	if a.input == "" {
-		a.filtered = tabFiltered
-		return
+func (a *App) refreshSections() {
+	for _, s := range a.sections {
+		s.SetTasks(a.allTasks)
 	}
-
-	query := strings.ToLower(a.input)
-	var out []task.Task
-	for _, t := range tabFiltered {
-		if strings.Contains(strings.ToLower(t.Description), query) {
-			out = append(out, t)
-		}
-	}
-	a.filtered = out
-
-	if a.cursor >= len(a.filtered) && len(a.filtered) > 0 {
-		a.cursor = len(a.filtered) - 1
+	if a.cursor >= a.activeSection().NumRows() && a.activeSection().NumRows() > 0 {
+		a.cursor = a.activeSection().NumRows() - 1
 	}
 }
 
-// syncBack updates the allTasks slice when a filtered task changes.
+func (a *App) applySearch() {
+	// Reset and re-filter with search term
+	for _, s := range a.sections {
+		s.SetTasks(a.allTasks)
+		if ts, ok := s.(*tasksection.Model); ok {
+			ts.SetSearch(a.input)
+			ts.SetTasks(a.allTasks)
+		}
+	}
+	if a.cursor >= a.activeSection().NumRows() && a.activeSection().NumRows() > 0 {
+		a.cursor = a.activeSection().NumRows() - 1
+	}
+}
+
 func (a *App) syncBack(t *task.Task) {
 	for i := range a.allTasks {
 		if a.allTasks[i].Source == t.Source {
 			a.allTasks[i].Status = t.Status
+			a.allTasks[i].CalDAVUID = t.CalDAVUID
 			break
 		}
 	}
 }
 
 func (a App) View() string {
-	if a.cfg.Vault.Path == "" {
+	if a.ctx.VaultPath() == "" {
 		return "No vault path configured. Set it in ~/.config/obia/config.toml\n\nPress q to quit."
 	}
 
-	w := a.width
+	w := a.ctx.Width
 	if w < 1 {
 		w = 80
 	}
@@ -270,63 +301,25 @@ func (a App) View() string {
 	b.WriteString("\n")
 
 	// Tab bar
-	b.WriteString(renderTabBar(a.activeTab, w))
+	b.WriteString(a.renderTabBar(w))
 	b.WriteString("\n")
 
 	// Task list
-	listHeight := a.height - 7 // reserve space for title, tabs, status bar
+	listHeight := a.ctx.Height - 7
 	if listHeight < 1 {
 		listHeight = 10
 	}
 
 	if a.loading {
 		b.WriteString("  Loading tasks...\n")
-	} else if len(a.filtered) == 0 {
-		b.WriteString("  No tasks\n")
 	} else {
-		// Scrolling window
-		start := 0
-		if a.cursor >= listHeight {
-			start = a.cursor - listHeight + 1
-		}
-		end := start + listHeight
-		if end > len(a.filtered) {
-			end = len(a.filtered)
-		}
-
-		for i := start; i < end; i++ {
-			t := a.filtered[i]
-			checkbox := "[ ]"
-			style := taskTodoStyle
-			if t.IsDone() {
-				checkbox = "[x]"
-				style = taskDoneStyle
-			}
-
-			relPath := t.RelativePath(a.cfg.Vault.Path)
-			desc := fmt.Sprintf("  %s %s", checkbox, t.Description)
-			source := sourceStyle.Render(relPath)
-
-			line := style.Render(desc)
-			padding := w - lipgloss.Width(desc) - lipgloss.Width(relPath) - 2
-			if padding < 1 {
-				padding = 1
-			}
-
-			row := line + strings.Repeat(" ", padding) + source
-			if i == a.cursor {
-				row = selectedStyle.Width(w).Render(row)
-			}
-
-			b.WriteString(row)
-			b.WriteString("\n")
-		}
+		b.WriteString(a.activeSection().View(w, listHeight, a.cursor, true))
 	}
 
-	// Input line (filter/add mode)
-	if a.mode == modeFilter {
+	// Input line
+	if a.inputMode == inputFilter {
 		b.WriteString(filterPromptStyle.Render("/") + a.input + "█\n")
-	} else if a.mode == modeAddTask {
+	} else if a.inputMode == inputAddTask {
 		b.WriteString(filterPromptStyle.Render("add: ") + a.input + "█\n")
 	}
 
@@ -336,8 +329,23 @@ func (a App) View() string {
 	}
 
 	// Status bar
-	bar := "  ↑/k ↓/j navigate  enter: toggle  p: push caldav  /: filter  a: add  tab: switch  r: reload  q: quit"
-	b.WriteString(statusBarStyle.Width(w).Render(bar))
+	b.WriteString(statusBarStyle.Width(w).Render(keys.BrowserHelp()))
 
 	return b.String()
+}
+
+func (a App) renderTabBar(width int) string {
+	var tabs []string
+	for i, s := range a.sections {
+		name := s.Title()
+		count := s.NumRows()
+		label := fmt.Sprintf("%s(%d)", name, count)
+		if i == a.activeTab {
+			tabs = append(tabs, activeTabStyle.Render("["+label+"]"))
+		} else {
+			tabs = append(tabs, inactiveTabStyle.Render(" "+label+" "))
+		}
+	}
+	bar := strings.Join(tabs, "")
+	return tabBarStyle.Width(width).Render(bar)
 }
