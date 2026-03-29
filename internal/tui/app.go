@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/hawkaii/obia/internal/caldav"
 	"github.com/hawkaii/obia/internal/config"
 	"github.com/hawkaii/obia/internal/task"
 	"github.com/hawkaii/obia/internal/vault"
@@ -140,6 +141,21 @@ func (a App) handleNormalKey(key string) (tea.Model, tea.Cmd) {
 	case "a":
 		a.mode = modeAddTask
 		a.input = ""
+
+	case "p":
+		if a.cursor < len(a.filtered) && a.cfg.CalDAV.URL != "" {
+			t := &a.filtered[a.cursor]
+			uid, err := caldav.PushTask(a.cfg.CalDAV, t)
+			if err != nil {
+				a.message = "CalDAV push error: " + err.Error()
+			} else {
+				t.CalDAVUID = uid
+				a.syncBack(t)
+				a.message = "Pushed to CalDAV: " + t.Description
+			}
+		} else if a.cfg.CalDAV.URL == "" {
+			a.message = "CalDAV not configured"
+		}
 
 	case "r":
 		return a, loadTasks(a.cfg.Vault.Path)
@@ -309,7 +325,7 @@ func (a App) View() string {
 	}
 
 	// Status bar
-	bar := "  ↑/k ↓/j navigate  enter: toggle  /: filter  a: add  tab: switch  r: reload  q: quit"
+	bar := "  ↑/k ↓/j navigate  enter: toggle  p: push caldav  /: filter  a: add  tab: switch  r: reload  q: quit"
 	b.WriteString(statusBarStyle.Width(a.width).Render(bar))
 
 	return b.String()
