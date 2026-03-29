@@ -25,10 +25,9 @@ func ScanMarkdownFiles(root string) ([]string, error) {
 
 		if d.IsDir() {
 			name := d.Name()
+			// Skip all hidden directories
 			if strings.HasPrefix(name, ".") && name != "." {
-				if skipDirs[name] {
-					return filepath.SkipDir
-				}
+				return filepath.SkipDir
 			}
 			if skipDirs[name] {
 				return filepath.SkipDir

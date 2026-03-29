@@ -31,12 +31,14 @@ type App struct {
 	mode      mode
 	input     string
 	message   string
+	loading   bool
 }
 
 func NewApp(cfg config.Config) App {
 	return App{
 		cfg:       cfg,
 		activeTab: TabTasks,
+		loading:   true,
 	}
 }
 
@@ -66,6 +68,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tasksLoadedMsg:
 		a.allTasks = msg.tasks
+		a.loading = false
 		a.applyFilter()
 
 	case tea.KeyMsg:
@@ -158,6 +161,7 @@ func (a App) handleNormalKey(key string) (tea.Model, tea.Cmd) {
 		}
 
 	case "r":
+		a.loading = true
 		return a, loadTasks(a.cfg.Vault.Path)
 	}
 
@@ -254,6 +258,11 @@ func (a App) View() string {
 		return "No vault path configured. Set it in ~/.config/obia/config.toml\n\nPress q to quit."
 	}
 
+	w := a.width
+	if w < 1 {
+		w = 80
+	}
+
 	var b strings.Builder
 
 	// Title
@@ -261,7 +270,7 @@ func (a App) View() string {
 	b.WriteString("\n")
 
 	// Tab bar
-	b.WriteString(renderTabBar(a.activeTab, a.width))
+	b.WriteString(renderTabBar(a.activeTab, w))
 	b.WriteString("\n")
 
 	// Task list
@@ -270,7 +279,9 @@ func (a App) View() string {
 		listHeight = 10
 	}
 
-	if len(a.filtered) == 0 {
+	if a.loading {
+		b.WriteString("  Loading tasks...\n")
+	} else if len(a.filtered) == 0 {
 		b.WriteString("  No tasks\n")
 	} else {
 		// Scrolling window
@@ -297,14 +308,14 @@ func (a App) View() string {
 			source := sourceStyle.Render(relPath)
 
 			line := style.Render(desc)
-			padding := a.width - lipgloss.Width(desc) - lipgloss.Width(relPath) - 2
+			padding := w - lipgloss.Width(desc) - lipgloss.Width(relPath) - 2
 			if padding < 1 {
 				padding = 1
 			}
 
 			row := line + strings.Repeat(" ", padding) + source
 			if i == a.cursor {
-				row = selectedStyle.Width(a.width).Render(row)
+				row = selectedStyle.Width(w).Render(row)
 			}
 
 			b.WriteString(row)
@@ -326,7 +337,7 @@ func (a App) View() string {
 
 	// Status bar
 	bar := "  ↑/k ↓/j navigate  enter: toggle  p: push caldav  /: filter  a: add  tab: switch  r: reload  q: quit"
-	b.WriteString(statusBarStyle.Width(a.width).Render(bar))
+	b.WriteString(statusBarStyle.Width(w).Render(bar))
 
 	return b.String()
 }

@@ -26,35 +26,49 @@ An interactive TUI for Obsidian vault task management, built with Go + Bubble Te
 
 ```
 obia/
-├── main.go                 # Entry point, config loading, launch TUI
+├── main.go                     # Entry point, config loading, launch TUI
 ├── go.mod
 ├── go.sum
-├── config.toml.example     # Example config
+├── config.toml.example
 │
 ├── internal/
 │   ├── config/
-│   │   └── config.go       # TOML config parsing (~/.config/obia/config.toml)
+│   │   └── config.go           # TOML config parsing (~/.config/obia/config.toml)
 │   │
 │   ├── vault/
-│   │   ├── scanner.go      # Recursively find all .md files (skip .obsidian, .trash)
-│   │   ├── parser.go       # Parse - [ ] tasks from markdown, track file + line offset
-│   │   └── writer.go       # Write task status changes back to .md files
+│   │   ├── scanner.go          # Recursively find all .md files (skip .obsidian, .trash)
+│   │   ├── parser.go           # Parse - [ ] tasks from markdown, track file + line offset
+│   │   └── writer.go           # Write task status changes back to .md files
 │   │
 │   ├── task/
-│   │   └── task.go         # Task data model (description, status, due, source, tags, wikilinks)
+│   │   └── task.go             # Task data model (status, description, due, source, tags, wikilinks)
 │   │
 │   ├── caldav/
-│   │   ├── client.go       # HTTP client (basic auth, PUT, REPORT)
-│   │   ├── vtodo.go        # Build/parse VTODO iCalendar format
-│   │   └── sync.go         # Push/pull logic, UID tracking
+│   │   ├── client.go           # HTTP client (basic auth, PUT, REPORT)
+│   │   ├── vtodo.go            # Build/parse VTODO iCalendar format
+│   │   └── sync.go             # Push/pull logic, UID tracking
 │   │
 │   └── tui/
-│       ├── app.go          # Root Bubble Tea model, tab switching
-│       ├── tabs.go         # Tab definitions and navigation
-│       ├── tasklist.go     # Task list component (filterable, scrollable)
-│       ├── taskform.go     # Add task input form
-│       ├── statusbar.go    # Bottom bar with keybindings help
-│       └── styles.go       # Lipgloss styles and theme
+│       ├── app.go              # Root model: message dispatch, tab routing, view composition
+│       ├── messages.go         # All typed messages (TasksLoadedMsg, CalDAVPushedMsg, etc.)
+│       ├── commands.go         # tea.Cmd factories for async ops (load tasks, push caldav)
+│       ├── styles.go           # Lipgloss styles and theme
+│       │
+│       ├── context/
+│       │   └── context.go      # ProgramContext: config, dimensions, view state, error
+│       │
+│       ├── keys/
+│       │   └── keys.go         # KeyMap definitions using bubbles/key, view-aware help
+│       │
+│       └── components/
+│           ├── section/
+│           │   └── section.go  # Section interface + BaseModel (shared cursor, search, loading)
+│           ├── tasksection/
+│           │   └── model.go    # Task list section implementing Section interface
+│           ├── tabs/
+│           │   └── tabs.go     # Tab bar rendering and navigation
+│           └── statusbar/
+│               └── statusbar.go # Bottom bar with context-aware keybinding hints
 │
 └── README.md
 ```
@@ -167,42 +181,74 @@ type TaskSource struct {
 
 ## Implementation Phases
 
-### Phase 1 — Scaffold & Config
-- [ ] `go mod init github.com/hawkaii/obia`
-- [ ] TOML config loading with defaults
+### Phase 1 — Scaffold & Config [DONE]
+- [x] `go mod init github.com/hawkaii/obia`
+- [x] TOML config loading with defaults
+- [x] Skeleton Bubble Tea app that launches and quits
+
+### Phase 2 — Vault Scanning & Task Parsing [DONE]
+- [x] Recursive `.md` file scanner with directory exclusions
+- [x] Markdown task parser (checkbox regex, wikilink/tag extraction)
+- [x] YAML frontmatter parser for CalDAV task notes
+- [x] Task data model with source tracking
+- [x] Smoke tested against real vault: 226 tasks (194 open, 32 done)
+
+### Phase 3 — TUI Task List [DONE]
+- [x] Task list component with scrolling
+- [x] Render tasks with status icon, description, source file
+- [x] Vim-style navigation (j/k)
+- [x] Tab bar with all 4 tabs (Tasks/Today/Overdue/CalDAV)
+- [x] Status bar with keybinding hints
+- [x] Toggle done: write `[x]` / `[ ]` back to source file
+- [x] Add task: input form, append to `todo.md`
+- [x] Search/filter tasks by text
+
+### Phase 4 — CalDAV Integration [DONE]
+- [x] Port CalDAV client from TypeScript plugin (HTTP PUT/REPORT with basic auth)
+- [x] Build VTODO from task data
+- [x] Push: generate UID, send to server, store UID mapping locally
+- [x] Pull: fetch remote statuses, update task display
+- [x] UID mapping stored in `~/.config/obia/sync.json`
+- [x] Tests for VTODO builder, parser, and writer
+
+### Phase 5 — Refactor: Align with gh-dash Architecture
+
+Studied gh-dash codebase. Key patterns to adopt:
+
+#### 5a — ProgramContext
+- [ ] Create `internal/tui/context/context.go`
+- [ ] Holds: config, screen dimensions, current view, error state, styles
+- [ ] All components receive `*context.ProgramContext` instead of raw config
+- [ ] Central update via `UpdateProgramContext()` on resize/view change
+
+#### 5b — Section Interface & Split app.go
+- [ ] Define `Section` interface: `Update()`, `View()`, `GetId()`, `GetType()`, `NumRows()`, `CurrRow()`
+- [ ] Create `internal/tui/components/section/` with base model (shared fields: ctx, cursor, loading, search)
+- [ ] Extract task list into `internal/tui/components/tasksection/` implementing Section
+- [ ] Each tab becomes a section instance with its own filter logic
+- [ ] Root `app.go` only dispatches messages to active section
+
+#### 5c — Keybinding System
+- [ ] Create `internal/tui/keys/keys.go` with `KeyMap` struct using `charmbracelet/bubbles/key`
+- [ ] Define bindings at package level, not inline strings
+- [ ] View-aware help text (different bindings shown per tab)
+- [ ] Support future custom keybindings from config
+
+#### 5d — Typed Messages
+- [ ] Replace inline logic with typed messages: `TasksLoadedMsg`, `TaskToggledMsg`, `TaskAddedMsg`, `CalDAVPushedMsg`, `CalDAVPulledMsg`, `ErrorMsg`
+- [ ] Async operations return `tea.Cmd` that emit messages
+- [ ] CalDAV push/pull become non-blocking commands
+
+#### 5e — Data Layer Separation
+- [ ] Vault parsing stays in `internal/vault/` (already clean)
+- [ ] TUI never calls vault functions directly — goes through commands that return messages
+- [ ] Add task caching: only re-parse changed files (track mtime like VaultMate does)
+
+### Phase 6 — Features & Bug Fixes
+- [ ] Fix filter bug: `/` keypress appends `/` character to filter input
+- [ ] Add option to filter only daily note tasks
+- [ ] Add sorting option: most recently added (by file mtime or line position)
 - [ ] First-run interactive setup (vault path, caldav creds)
-- [ ] Skeleton Bubble Tea app that launches and quits
-
-### Phase 2 — Vault Scanning & Task Parsing
-- [ ] Recursive `.md` file scanner with directory exclusions
-- [ ] Markdown task parser (checkbox regex, wikilink/tag extraction)
-- [ ] YAML frontmatter parser for CalDAV task notes
-- [ ] Task data model with source tracking
-
-### Phase 3 — TUI Task List
-- [ ] Task list component with scrolling
-- [ ] Render tasks with status icon, description, source file
-- [ ] Vim-style navigation (j/k)
-- [ ] Tab bar (Tasks tab only initially)
-- [ ] Status bar with keybinding hints
-
-### Phase 4 — Task Actions
-- [ ] Toggle done: write `[x]` / `[ ]` back to source file
-- [ ] Add task: input form, append to `todo.md` or today's daily note
-- [ ] Search/filter tasks by text
-
-### Phase 5 — CalDAV Integration
-- [ ] Port CalDAV client from TypeScript plugin (HTTP PUT/REPORT with basic auth)
-- [ ] Build VTODO from task data
-- [ ] Push: generate UID, send to server, store UID mapping locally
-- [ ] Pull: fetch remote statuses, update task display
-- [ ] UID mapping stored in `~/.config/obia/sync.json`
-
-### Phase 6 — Tabs & Views
-- [ ] Today tab (filter by daily note date + due date)
-- [ ] Overdue tab (filter by due < today)
-- [ ] CalDAV tab (filter by has caldav-uid)
-- [ ] Tab switching with tab/shift+tab
 
 ---
 
