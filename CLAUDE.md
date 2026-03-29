@@ -17,13 +17,23 @@ go test ./internal/vault/   # Run tests for a specific package
 
 ## Architecture
 
-Go project using Bubble Tea (charmbracelet) for the TUI. All application code lives under `internal/`:
+Go project using Bubble Tea (charmbracelet) for the TUI. Hybrid architecture inspired by gh-dash (section interface) and Crush (state machine).
+
+**Top-level state machine**: `modeBrowser` (current) → `modeChat` (future). Within browser, each tab is a `Section` implementing a shared interface.
+
+All application code lives under `internal/`:
 
 - **`internal/config/`** — TOML config loading from `~/.config/obia/config.toml`
 - **`internal/vault/`** — Scans `.md` files, parses `- [ ]` checkbox tasks, writes status changes back to files. Skips `.obsidian`, `.trash`, `.opencode`, `templates`, `extras` directories.
 - **`internal/task/`** — Task data model (status, description, due date, source file + line, CalDAV UID, tags, wikilinks)
 - **`internal/caldav/`** — CalDAV HTTP client (basic auth, VTODO build/parse, push/pull). Ported from the TypeScript Obsidian plugin at `~/code/projects/caldev-sync-plugin/caldav-sync/src/caldav.ts`.
-- **`internal/tui/`** — Bubble Tea models: root app with tab switching, task list, add-task form, status bar, lipgloss styles
+- **`internal/tui/`** — Root app model (state machine + message dispatch)
+  - **`context/`** — `ProgramContext` shared across all components (config, dimensions, error state)
+  - **`keys/`** — Centralized keybinding definitions using `bubbles/key`
+  - **`messages.go`** — Typed messages (`TasksLoadedMsg`, `TaskToggledMsg`, `CalDAVPushedMsg`, etc.)
+  - **`commands.go`** — `tea.Cmd` factories for async operations (load, toggle, add, push)
+  - **`components/section/`** — `Section` interface that every browser tab implements
+  - **`components/tasksection/`** — Task list section model with per-tab filter functions
 
 ## Key Dependencies
 
