@@ -177,10 +177,12 @@ func (a App) handleBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.Filter):
 		a.inputMode = inputFilter
 		a.input = ""
+		return a, nil
 
 	case key.Matches(msg, a.keys.AddTask):
 		a.inputMode = inputAddTask
 		a.input = ""
+		return a, nil
 
 	case key.Matches(msg, a.keys.Push):
 		tasks := a.activeSection().Tasks()
