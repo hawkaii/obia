@@ -89,13 +89,35 @@ func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target st
 
 // AppendTask adds a new task line to the given file.
 func AppendTask(filePath string, description string) error {
+	_, err := AppendTaskAt(filePath, description)
+	return err
+}
+
+// AppendTaskAt adds a new task line to the given file and returns the 1-indexed line number
+// where the task was written.
+func AppendTaskAt(filePath string, description string) (int, error) {
+	// Read existing content to count lines.
+	lineCount := 0
+	existing, err := os.ReadFile(filePath)
+	if err == nil {
+		lineCount = strings.Count(string(existing), "\n")
+		if len(existing) > 0 && existing[len(existing)-1] != '\n' {
+			lineCount++ // last line has no trailing newline
+		}
+	}
+	// lineCount is now the number of existing lines (0 if file doesn't exist).
+
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer f.Close()
 
-	line := fmt.Sprintf("\n- [ ] %s\n", description)
-	_, err = f.WriteString(line)
-	return err
+	taskLine := fmt.Sprintf("\n- [ ] %s\n", description)
+	if _, err = f.WriteString(taskLine); err != nil {
+		return 0, err
+	}
+
+	// The blank line adds 1, then the task is on the next line.
+	return lineCount + 2, nil
 }
