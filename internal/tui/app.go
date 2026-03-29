@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hawkaii/obia/internal/config"
 	"github.com/hawkaii/obia/internal/task"
+	"github.com/hawkaii/obia/internal/vault"
 	appctx "github.com/hawkaii/obia/internal/tui/context"
 	"github.com/hawkaii/obia/internal/tui/keys"
 	"github.com/hawkaii/obia/internal/tui/components/section"
@@ -101,6 +102,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TaskAddedMsg:
 		if msg.Err != nil {
 			a.message = "Error: " + msg.Err.Error()
+		} else if msg.AutoPushErr != nil {
+			a.message = "Added: " + msg.Description + " (CalDAV push failed: " + msg.AutoPushErr.Error() + ")"
+		} else if msg.AutoPushUID != "" {
+			a.message = "Added + pushed to CalDAV: " + msg.Description
 		} else {
 			a.message = "Added: " + msg.Description
 		}
@@ -227,11 +232,12 @@ func (a App) handleAddTaskKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keys.Enter):
 		if a.input != "" {
-			filePath := a.ctx.VaultPath() + "/" + a.ctx.Config.Vault.DefaultTaskFile
+			cfg := a.ctx.Config.Vault
+			filePath, _ := vault.ResolveTaskFile(cfg.Path, cfg.DailyNotesFolder, cfg.DailyNotesFormat, cfg.DefaultTaskFile, cfg.AddTaskTarget)
 			desc := a.input
 			a.input = ""
 			a.inputMode = inputNone
-			return a, AddTaskCmd(filePath, desc)
+			return a, AddTaskWithAutoPushCmd(filePath, desc, a.ctx.Config.CalDAV)
 		}
 		a.inputMode = inputNone
 	case key.Matches(msg, a.keys.Escape):

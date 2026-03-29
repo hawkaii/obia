@@ -58,6 +58,7 @@ Uses HTTP PUT (push) and REPORT (pull) with basic auth against a CalDAV server. 
 ## Git
 
 - Never add a `Co-Authored-By` trailer to commits. All commits are authored solely by the user.
+- Never add "Generated with Claude Code" or similar AI attribution footers to PRs, issues, or any content.
 
 ## Design Decisions
 

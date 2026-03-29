@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hawkaii/obia/internal/task"
 )
@@ -43,6 +44,99 @@ func TestToggleTask(t *testing.T) {
 	lines = strings.Split(string(data), "\n")
 	if lines[1] != "- [ ] second task" {
 		t.Errorf("line 1 = %q", lines[1])
+	}
+}
+
+func TestResolveTaskFile_DailyExists(t *testing.T) {
+	dir := t.TempDir()
+	diary := filepath.Join(dir, "diary")
+	os.MkdirAll(diary, 0o755)
+
+	today := time.Now().Format("2006-01-02")
+	dailyFile := filepath.Join(diary, today+".md")
+	os.WriteFile(dailyFile, []byte("# Today\n"), 0o644)
+
+	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != dailyFile {
+		t.Errorf("expected %s, got %s", dailyFile, got)
+	}
+}
+
+func TestResolveTaskFile_DailyCreatedFromTemplate(t *testing.T) {
+	dir := t.TempDir()
+	diary := filepath.Join(dir, "diary")
+	os.MkdirAll(diary, 0o755)
+	tmplDir := filepath.Join(dir, "templates")
+	os.MkdirAll(tmplDir, 0o755)
+	os.WriteFile(filepath.Join(tmplDir, "diary template.md"), []byte("**Date**: {{date}}\n"), 0o644)
+
+	today := time.Now().Format("2006-01-02")
+	expected := filepath.Join(diary, today+".md")
+
+	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != expected {
+		t.Errorf("expected %s, got %s", expected, got)
+	}
+
+	data, _ := os.ReadFile(got)
+	if !strings.Contains(string(data), today) {
+		t.Errorf("template variable not replaced: %q", string(data))
+	}
+}
+
+func TestResolveTaskFile_DailyCreatedBare(t *testing.T) {
+	dir := t.TempDir()
+	diary := filepath.Join(dir, "diary")
+	os.MkdirAll(diary, 0o755)
+	// No templates folder
+
+	today := time.Now().Format("2006-01-02")
+	expected := filepath.Join(diary, today+".md")
+
+	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != expected {
+		t.Errorf("expected %s, got %s", expected, got)
+	}
+
+	data, _ := os.ReadFile(got)
+	if !strings.Contains(string(data), "# "+today) {
+		t.Errorf("bare heading missing: %q", string(data))
+	}
+}
+
+func TestResolveTaskFile_DailyFolderMissing(t *testing.T) {
+	dir := t.TempDir()
+	// No diary folder
+
+	expected := filepath.Join(dir, "todo.md")
+	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != expected {
+		t.Errorf("expected fallback %s, got %s", expected, got)
+	}
+}
+
+func TestResolveTaskFile_DefaultTarget(t *testing.T) {
+	dir := t.TempDir()
+	expected := filepath.Join(dir, "todo.md")
+
+	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != expected {
+		t.Errorf("expected %s, got %s", expected, got)
 	}
 }
 

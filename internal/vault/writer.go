@@ -3,8 +3,10 @@ package vault
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/hawkaii/obia/internal/task"
 )
@@ -38,6 +40,51 @@ func ToggleTask(t *task.Task) error {
 	lines[lineIdx] = matches[1] + newMarker + matches[3]
 
 	return os.WriteFile(t.Source.FilePath, []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+// ResolveTaskFile determines where to add a new task based on the target setting.
+// target: "daily" tries today's daily note, "default" uses the default task file.
+func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target string) (string, error) {
+	defaultPath := filepath.Join(vaultPath, defaultFile)
+
+	if target != "daily" {
+		return defaultPath, nil
+	}
+
+	// Check if the daily notes folder exists
+	dailyDir := filepath.Join(vaultPath, dailyFolder)
+	if info, err := os.Stat(dailyDir); err != nil || !info.IsDir() {
+		return defaultPath, nil
+	}
+
+	// Build today's daily note path
+	today := time.Now().Format(dailyFormat)
+	dailyPath := filepath.Join(dailyDir, today+".md")
+
+	// If it already exists, use it
+	if _, err := os.Stat(dailyPath); err == nil {
+		return dailyPath, nil
+	}
+
+	// Try to create from template
+	templatePath := filepath.Join(vaultPath, "templates", "diary template.md")
+	templateData, err := os.ReadFile(templatePath)
+	if err == nil {
+		// Replace template variables
+		content := strings.ReplaceAll(string(templateData), "{{date}}", today)
+		content = strings.ReplaceAll(content, "{{time}}", time.Now().Format("15:04"))
+		if err := os.WriteFile(dailyPath, []byte(content), 0o644); err != nil {
+			return defaultPath, nil
+		}
+		return dailyPath, nil
+	}
+
+	// No template — create a bare file
+	bare := fmt.Sprintf("# %s\n\n", today)
+	if err := os.WriteFile(dailyPath, []byte(bare), 0o644); err != nil {
+		return defaultPath, nil
+	}
+	return dailyPath, nil
 }
 
 // AppendTask adds a new task line to the given file.

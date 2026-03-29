@@ -18,6 +18,8 @@ type TaskToggledMsg struct {
 type TaskAddedMsg struct {
 	Description string
 	Err         error
+	AutoPushErr error  // non-nil if auto-push failed (task still saved)
+	AutoPushUID string // set if auto-push succeeded
 }
 
 // CalDAVPushedMsg is sent after pushing a task to CalDAV.
