@@ -1,0 +1,13 @@
+[vault]
+path = "/mnt/d/obsidian/notes"
+daily_notes_folder = "diary"
+daily_notes_format = "2006-01-02"
+default_task_file = "todo.md"
+
+[caldav]
+url = ""
+username = ""
+password = ""
+
+[ui]
+default_tab = "tasks"
