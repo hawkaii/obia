@@ -101,9 +101,6 @@ func AppendTaskAt(filePath string, description string) (int, error) {
 	existing, err := os.ReadFile(filePath)
 	if err == nil {
 		lineCount = strings.Count(string(existing), "\n")
-		if len(existing) > 0 && existing[len(existing)-1] != '\n' {
-			lineCount++ // last line has no trailing newline
-		}
 	}
 	// lineCount is now the number of existing lines (0 if file doesn't exist).
 

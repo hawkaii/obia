@@ -182,6 +182,30 @@ func TestAppendTaskAt_ReturnsCorrectLine(t *testing.T) {
 	}
 }
 
+func TestAppendTaskAt_NoTrailingNewline(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "note.md")
+	os.WriteFile(f, []byte("foo"), 0o644) // no trailing newline
+
+	line, err := AppendTaskAt(f, "my task")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if line != 2 {
+		t.Errorf("expected line 2, got %d", line)
+	}
+
+	data, _ := os.ReadFile(f)
+	lines := strings.Split(string(data), "\n")
+	if line-1 >= len(lines) {
+		t.Fatalf("line %d out of range, file has %d lines", line, len(lines))
+	}
+	if !strings.Contains(lines[line-1], "- [ ] my task") {
+		t.Errorf("line %d = %q, expected task", line, lines[line-1])
+	}
+}
+
 func TestAppendTaskAt_NewFile(t *testing.T) {
 	dir := t.TempDir()
 	f := filepath.Join(dir, "new.md")
