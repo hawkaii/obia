@@ -44,17 +44,17 @@ func ToggleTask(t *task.Task) error {
 
 // ResolveTaskFile determines where to add a new task based on the target setting.
 // target: "daily" tries today's daily note, "default" uses the default task file.
-func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target string) (string, error) {
+func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target string) string {
 	defaultPath := filepath.Join(vaultPath, defaultFile)
 
 	if target != "daily" {
-		return defaultPath, nil
+		return defaultPath
 	}
 
 	// Check if the daily notes folder exists
 	dailyDir := filepath.Join(vaultPath, dailyFolder)
 	if info, err := os.Stat(dailyDir); err != nil || !info.IsDir() {
-		return defaultPath, nil
+		return defaultPath
 	}
 
 	// Build today's daily note path
@@ -63,7 +63,7 @@ func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target st
 
 	// If it already exists, use it
 	if _, err := os.Stat(dailyPath); err == nil {
-		return dailyPath, nil
+		return dailyPath
 	}
 
 	// Try to create from template
@@ -74,17 +74,17 @@ func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target st
 		content := strings.ReplaceAll(string(templateData), "{{date}}", today)
 		content = strings.ReplaceAll(content, "{{time}}", time.Now().Format("15:04"))
 		if err := os.WriteFile(dailyPath, []byte(content), 0o644); err != nil {
-			return defaultPath, nil
+			return defaultPath
 		}
-		return dailyPath, nil
+		return dailyPath
 	}
 
 	// No template — create a bare file
 	bare := fmt.Sprintf("# %s\n\n", today)
 	if err := os.WriteFile(dailyPath, []byte(bare), 0o644); err != nil {
-		return defaultPath, nil
+		return defaultPath
 	}
-	return dailyPath, nil
+	return dailyPath
 }
 
 // AppendTask adds a new task line to the given file.

@@ -5,9 +5,11 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/hawkaii/obia/internal/caldav"
 	"github.com/hawkaii/obia/internal/task"
 )
 
@@ -108,6 +110,16 @@ func ParseAllTasks(vaultPath string) ([]task.Task, error) {
 		}
 		return allTasks[i].Source.FileMod.After(allTasks[j].Source.FileMod)
 	})
+
+	// Hydrate CalDAVUID from sync.json for tasks that have been pushed.
+	if uidMap, err := caldav.LoadUIDMap(); err == nil {
+		for i := range allTasks {
+			key := allTasks[i].Source.FilePath + ":" + strconv.Itoa(allTasks[i].Source.Line)
+			if uid, ok := uidMap[key]; ok {
+				allTasks[i].CalDAVUID = uid
+			}
+		}
+	}
 
 	return allTasks, nil
 }

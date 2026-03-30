@@ -233,7 +233,7 @@ func (a App) handleAddTaskKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.Enter):
 		if a.input != "" {
 			cfg := a.ctx.Config.Vault
-			filePath, _ := vault.ResolveTaskFile(cfg.Path, cfg.DailyNotesFolder, cfg.DailyNotesFormat, cfg.DefaultTaskFile, cfg.AddTaskTarget)
+			filePath := vault.ResolveTaskFile(cfg.Path, cfg.DailyNotesFolder, cfg.DailyNotesFormat, cfg.DefaultTaskFile, cfg.AddTaskTarget)
 			desc := a.input
 			a.input = ""
 			a.inputMode = inputNone
@@ -271,7 +271,6 @@ func (a *App) refreshSections() {
 func (a *App) applySearch() {
 	// Reset and re-filter with search term
 	for _, s := range a.sections {
-		s.SetTasks(a.allTasks)
 		if ts, ok := s.(*tasksection.Model); ok {
 			ts.SetSearch(a.input)
 			ts.SetTasks(a.allTasks)

@@ -56,10 +56,7 @@ func TestResolveTaskFile_DailyExists(t *testing.T) {
 	dailyFile := filepath.Join(diary, today+".md")
 	os.WriteFile(dailyFile, []byte("# Today\n"), 0o644)
 
-	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
 	if got != dailyFile {
 		t.Errorf("expected %s, got %s", dailyFile, got)
 	}
@@ -76,10 +73,7 @@ func TestResolveTaskFile_DailyCreatedFromTemplate(t *testing.T) {
 	today := time.Now().Format("2006-01-02")
 	expected := filepath.Join(diary, today+".md")
 
-	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
 	if got != expected {
 		t.Errorf("expected %s, got %s", expected, got)
 	}
@@ -99,10 +93,7 @@ func TestResolveTaskFile_DailyCreatedBare(t *testing.T) {
 	today := time.Now().Format("2006-01-02")
 	expected := filepath.Join(diary, today+".md")
 
-	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
 	if got != expected {
 		t.Errorf("expected %s, got %s", expected, got)
 	}
@@ -118,10 +109,7 @@ func TestResolveTaskFile_DailyFolderMissing(t *testing.T) {
 	// No diary folder
 
 	expected := filepath.Join(dir, "todo.md")
-	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "daily")
 	if got != expected {
 		t.Errorf("expected fallback %s, got %s", expected, got)
 	}
@@ -131,10 +119,7 @@ func TestResolveTaskFile_DefaultTarget(t *testing.T) {
 	dir := t.TempDir()
 	expected := filepath.Join(dir, "todo.md")
 
-	got, err := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "default")
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := ResolveTaskFile(dir, "diary", "2006-01-02", "todo.md", "default")
 	if got != expected {
 		t.Errorf("expected %s, got %s", expected, got)
 	}
