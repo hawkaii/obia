@@ -31,12 +31,14 @@ Add Cobra for CLI framework, then implement:
 ## Features (Phase 6)
 
 - [ ] add "Daily" tab — shows all tasks from `diary/*.md` files across all dates (not just today)
-- [ ] fuzzy search with `sahilm/fuzzy` — replace exact substring matching in `/` filter
-- [ ] grouped view: tasks grouped by file with header separators, toggle with `v` between flat/grouped
+- [x] fuzzy search with `sahilm/fuzzy` — replace exact substring matching in `/` filter
+- [x] grouped view: tasks grouped by file with header separators, toggle with `:` between flat/grouped
 - [x] add sorting option: most recently added (by file mtime or line position)
 - [ ] first-run interactive setup (vault path, caldav creds)
 - [ ] task add form: support setting due date/time, tags, and target file (not just todo.md)
-- [ ] CalDAV push: allow setting due date, priority, and status before pushing
+- [x] CalDAV push form: set due date, priority, and status before pushing (interactive overlay)
+- [x] smart task add: route new tasks to today's daily note or default file (`add_task_target` config)
+- [x] CalDAV auto-push: automatically push new tasks on add (`auto_push` config flag)
 - [ ] task detail view: press `d` or `enter` to see full task metadata (due, tags, source, CalDAV UID)
 
 ## Bugs
