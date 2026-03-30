@@ -213,6 +213,11 @@ func (a App) handleBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.message = "CalDAV not configured"
 		}
 
+	case key.Matches(msg, a.keys.ToggleView):
+		if ts, ok := a.activeSection().(*tasksection.Model); ok {
+			ts.ToggleGrouped()
+		}
+
 	case key.Matches(msg, a.keys.Reload):
 		a.loading = true
 		return a, LoadTasksCmd(a.ctx.VaultPath())
