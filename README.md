@@ -24,9 +24,12 @@ Obia scans every `.md` file in your [Obsidian](https://obsidian.md) vault, pulls
 - **Tabbed views** — Tasks, Today, Overdue, CalDAV — switch with <kbd>Tab</kbd>
 - **Vim-style navigation** — <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>g</kbd>/<kbd>G</kbd> for top/bottom
 - **Toggle done** — Hit <kbd>Enter</kbd> to check/uncheck, writes back to the `.md` file instantly
-- **Add tasks** — Press <kbd>a</kbd> to append a task to `todo.md`
-- **Search** — <kbd>/</kbd> to filter tasks by text
+- **Smart task add** — Press <kbd>a</kbd> to add a task; routes to today's daily note or default file based on config
+- **Fuzzy search** — <kbd>/</kbd> to filter with fuzzy matching across all task descriptions
+- **Grouped view** — Press <kbd>:</kbd> to toggle between flat list and tasks grouped by source file
 - **CalDAV sync** — Push tasks to any CalDAV server with <kbd>p</kbd> (Radicale, Nextcloud, iCloud, etc.)
+- **CalDAV push form** — Set due date, priority, and status in an interactive overlay before pushing
+- **CalDAV auto-push** — Optionally push new tasks to CalDAV automatically on add
 - **Wikilinks & tags** — Extracts `[[links]]` and `#tags` from task descriptions
 - **Fast** — Scans 800+ files in under a second
 
@@ -64,11 +67,13 @@ path = "/path/to/your/obsidian/vault"
 daily_notes_folder = "diary"
 daily_notes_format = "2006-01-02"
 default_task_file = "todo.md"
+add_task_target = "daily"   # "daily" → today's note, "default" → default_task_file
 
 [caldav]
 url = ""
 username = ""
 password = ""
+auto_push = false           # push new tasks to CalDAV automatically on add
 
 [ui]
 default_tab = "tasks"
@@ -93,9 +98,10 @@ That's it. You'll see all your open tasks across the vault.
 | <kbd>g</kbd> / <kbd>G</kbd> | Jump to top / bottom |
 | <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> | Switch tabs |
 | <kbd>Enter</kbd> | Toggle task done/undone |
-| <kbd>a</kbd> | Add new task |
-| <kbd>/</kbd> | Search / filter |
-| <kbd>p</kbd> | Push task to CalDAV |
+| <kbd>a</kbd> | Add new task (routes to daily note or default file) |
+| <kbd>/</kbd> | Fuzzy search / filter |
+| <kbd>:</kbd> | Toggle flat / grouped-by-file view |
+| <kbd>p</kbd> | Push task to CalDAV (opens form for due/priority/status) |
 | <kbd>r</kbd> | Reload vault |
 | <kbd>Esc</kbd> | Clear filter / cancel |
 | <kbd>q</kbd> | Quit |
@@ -122,7 +128,11 @@ username = "you"
 password = "secret"
 ```
 
-Then press <kbd>p</kbd> on any task to push it as a VTODO. UID mappings are stored in `~/.config/obia/sync.json` — your vault markdown stays clean.
+Then press <kbd>p</kbd> on any task to open the push form. You can edit the summary, set a due date, choose priority (none / 1 / 5 / 9), and set CalDAV status (NEEDS-ACTION, IN-PROCESS, COMPLETED, CANCELLED) before pushing.
+
+UID mappings are stored in `~/.config/obia/sync.json` and hydrated back into tasks on every load — your vault markdown stays clean.
+
+To push automatically whenever you add a task, set `auto_push = true` in `[caldav]`.
 
 ---
 
@@ -182,19 +192,23 @@ caldav-uid: abc-123-def
 ## Built With
 
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI framework
+- [Bubbles](https://github.com/charmbracelet/bubbles) — Text input components
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss) — Terminal styling
 - [go-toml](https://github.com/pelletier/go-toml) — Config parsing
+- [sahilm/fuzzy](https://github.com/sahilm/fuzzy) — Fuzzy search
 
 ---
 
 ## Roadmap
 
-- [ ] Refactor to gh-dash-style component architecture
-- [ ] Sort tasks by most recently added
-- [ ] Filter only daily note tasks
+- [ ] CLI flags (Cobra) — `--vault`, `--config`, `--debug`, `--no-tui`
+- [ ] Daily tab — all tasks from `diary/*.md` across all dates
+- [ ] Task detail view — `d` to see full metadata (due, tags, source, CalDAV UID)
+- [ ] First-run setup wizard
+- [ ] mtime-based task caching (skip unchanged files)
+- [ ] Chat mode (`ctrl+t` to toggle, `modeChat` in state machine)
 - [ ] Voice input via Whisper API
-- [ ] AI-powered auto-linking to vault notes
-- [ ] Bookmark capture
+- [ ] AI auto-linking to vault notes
 - [ ] Flutter mobile app
 
 ---
