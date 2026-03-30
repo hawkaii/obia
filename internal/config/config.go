@@ -13,12 +13,14 @@ type Vault struct {
 	DailyNotesFolder string `toml:"daily_notes_folder"`
 	DailyNotesFormat string `toml:"daily_notes_format"`
 	DefaultTaskFile  string `toml:"default_task_file"`
+	AddTaskTarget    string `toml:"add_task_target"` // "daily" | "default"
 }
 
 type CalDAV struct {
 	URL      string `toml:"url"`
 	Username string `toml:"username"`
 	Password string `toml:"password"`
+	AutoPush bool   `toml:"auto_push"`
 }
 
 type UI struct {
@@ -37,6 +39,7 @@ func DefaultConfig() Config {
 			DailyNotesFolder: "diary",
 			DailyNotesFormat: "2006-01-02",
 			DefaultTaskFile:  "todo.md",
+			AddTaskTarget:    "daily",
 		},
 		UI: UI{
 			DefaultTab: "tasks",

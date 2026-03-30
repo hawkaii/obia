@@ -211,9 +211,25 @@ type TaskSource struct {
 - [x] UID mapping stored in `~/.config/obia/sync.json`
 - [x] Tests for VTODO builder, parser, and writer
 
-### Phase 5 — Refactor: Align with gh-dash Architecture
+### Phase 5 — Refactor: Hybrid Architecture (gh-dash + Crush patterns)
 
-Studied gh-dash codebase. Key patterns to adopt:
+Studied gh-dash and charmbracelet/crush codebases. Adopting a hybrid:
+- **Top-level state machine** (from Crush) — `modeBrowser` now, `modeChat` later
+- **Section interface** (from gh-dash) — each browser tab is its own model
+- Chat mode deferred — the state machine is there but only browser is implemented
+
+#### Architecture Pattern
+```
+App (state machine)
+ ├── modeBrowser (now)
+ │    ├── TasksSection   ← Section interface
+ │    ├── TodaySection   ← Section interface
+ │    ├── OverdueSection ← Section interface
+ │    └── CalDAVSection  ← Section interface
+ │
+ └── modeChat (later)
+      └── Chat model     ← Its own model, NOT a Section
+```
 
 #### 5a — ProgramContext
 - [ ] Create `internal/tui/context/context.go`
@@ -221,22 +237,23 @@ Studied gh-dash codebase. Key patterns to adopt:
 - [ ] All components receive `*context.ProgramContext` instead of raw config
 - [ ] Central update via `UpdateProgramContext()` on resize/view change
 
-#### 5b — Section Interface & Split app.go
-- [ ] Define `Section` interface: `Update()`, `View()`, `GetId()`, `GetType()`, `NumRows()`, `CurrRow()`
-- [ ] Create `internal/tui/components/section/` with base model (shared fields: ctx, cursor, loading, search)
-- [ ] Extract task list into `internal/tui/components/tasksection/` implementing Section
-- [ ] Each tab becomes a section instance with its own filter logic
-- [ ] Root `app.go` only dispatches messages to active section
+#### 5b — State Machine + Section Interface
+- [ ] Add `appMode` enum to root App: `modeBrowser` (only mode for now)
+- [ ] Create `Browser` struct holding `[]Section` + activeTab + ctx
+- [ ] Define `Section` interface: `Update()`, `View()`, `NumRows()`, `CurrRow()`
+- [ ] Create `internal/tui/components/section/` with BaseModel (shared cursor, search, loading)
+- [ ] Extract each tab into `internal/tui/components/tasksection/` implementing Section
+- [ ] Root `app.go` dispatches: mode → browser → active section
 
 #### 5c — Keybinding System
 - [ ] Create `internal/tui/keys/keys.go` with `KeyMap` struct using `charmbracelet/bubbles/key`
 - [ ] Define bindings at package level, not inline strings
-- [ ] View-aware help text (different bindings shown per tab)
+- [ ] View-aware help text (different bindings shown per tab/mode)
 - [ ] Support future custom keybindings from config
 
-#### 5d — Typed Messages
+#### 5d — Typed Messages & Commands
 - [ ] Replace inline logic with typed messages: `TasksLoadedMsg`, `TaskToggledMsg`, `TaskAddedMsg`, `CalDAVPushedMsg`, `CalDAVPulledMsg`, `ErrorMsg`
-- [ ] Async operations return `tea.Cmd` that emit messages
+- [ ] Create `internal/tui/commands.go` — `tea.Cmd` factories for async ops
 - [ ] CalDAV push/pull become non-blocking commands
 
 #### 5e — Data Layer Separation
@@ -249,6 +266,15 @@ Studied gh-dash codebase. Key patterns to adopt:
 - [ ] Add option to filter only daily note tasks
 - [ ] Add sorting option: most recently added (by file mtime or line position)
 - [ ] First-run interactive setup (vault path, caldav creds)
+
+### Phase 7 — Chat Mode (future)
+- [ ] Add `modeChat` to state machine
+- [ ] Create `internal/tui/chat/` model (textarea input, message list, scrollable viewport)
+- [ ] Toggle between browser and chat with keybinding (e.g., `ctrl+t`)
+- [ ] Chat can access task data through shared ProgramContext
+- [ ] Add pub/sub event system (from Crush pattern) when AI features land
+- [ ] Voice input via Whisper API
+- [ ] AI auto-linking to vault notes
 
 ---
 

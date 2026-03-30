@@ -19,8 +19,9 @@ func (s Status) String() string {
 }
 
 type Source struct {
-	FilePath string // Absolute path to .md file
-	Line     int    // Line number (1-indexed)
+	FilePath string    // Absolute path to .md file
+	Line     int       // Line number (1-indexed)
+	FileMod  time.Time // File modification time (for sorting by recency)
 }
 
 type Task struct {
