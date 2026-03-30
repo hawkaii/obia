@@ -213,7 +213,7 @@ func (a App) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.Escape):
 		a.input = ""
 		a.inputMode = inputNone
-		a.refreshSections()
+		a.applySearch()
 	case key.Matches(msg, a.keys.Backspace):
 		if len(a.input) > 0 {
 			a.input = a.input[:len(a.input)-1]
@@ -270,7 +270,6 @@ func (a *App) refreshSections() {
 func (a *App) applySearch() {
 	// Reset and re-filter with search term
 	for _, s := range a.sections {
-		s.SetTasks(a.allTasks)
 		if ts, ok := s.(*tasksection.Model); ok {
 			ts.SetSearch(a.input)
 			ts.SetTasks(a.allTasks)

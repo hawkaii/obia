@@ -132,7 +132,7 @@ func (m *Model) viewGrouped(width, height, cursor int, selected bool) string {
 	for i, t := range m.filtered {
 		relPath := t.RelativePath(m.vaultPath)
 		if relPath != lastFile {
-			sep := strings.Repeat("─", width-len(relPath)-5)
+			sep := strings.Repeat("─", width-lipgloss.Width(relPath)-5)
 			header := fileHeaderStyle.Render(fmt.Sprintf("── %s %s", relPath, sep))
 			lines = append(lines, displayLine{isHeader: true, taskIndex: -1, text: header})
 			lastFile = relPath
@@ -148,6 +148,11 @@ func (m *Model) viewGrouped(width, height, cursor int, selected bool) string {
 		row := style.Render(fmt.Sprintf("    %s %s", checkbox, t.Description))
 		if selected && i == cursor {
 			row = selectedStyle.Width(width).Render(row)
+		} else {
+			padding := width - lipgloss.Width(row)
+			if padding > 0 {
+				row = row + strings.Repeat(" ", padding)
+			}
 		}
 		lines = append(lines, displayLine{isHeader: false, taskIndex: i, text: row})
 	}
