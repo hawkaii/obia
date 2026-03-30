@@ -43,14 +43,20 @@ func PushCalDAVCmd(cfg config.CalDAV, t *task.Task) tea.Cmd {
 // AddTaskWithAutoPushCmd appends a task and optionally pushes to CalDAV if auto_push is enabled.
 func AddTaskWithAutoPushCmd(filePath, description string, caldavCfg config.CalDAV) tea.Cmd {
 	return func() tea.Msg {
-		err := vault.AppendTask(filePath, description)
+		line, err := vault.AppendTaskAt(filePath, description)
 		if err != nil {
 			return TaskAddedMsg{Description: description, Err: err}
 		}
 
 		// Auto-push if configured
 		if caldavCfg.AutoPush && caldavCfg.URL != "" {
-			t := &task.Task{Description: description}
+			t := &task.Task{
+				Description: description,
+				Source: task.Source{
+					FilePath: filePath,
+					Line:     line,
+				},
+			}
 			uid, pushErr := caldav.PushTask(caldavCfg, t)
 			if pushErr != nil {
 				return TaskAddedMsg{

@@ -139,3 +139,68 @@ func TestAppendTask(t *testing.T) {
 		t.Errorf("file = %q", string(data))
 	}
 }
+
+func TestAppendTaskAt_ReturnsCorrectLine(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "todo.md")
+	os.WriteFile(f, []byte("# Tasks\n\n- [ ] first\n"), 0o644)
+
+	line, err := AppendTaskAt(f, "second task")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// File has 3 lines, AppendTaskAt writes "\n- [ ] second task\n"
+	// so the task lands on line 5 (blank line 4, task line 5).
+	if line != 5 {
+		t.Errorf("expected line 5, got %d", line)
+	}
+
+	// Verify the task is actually on that line
+	data, _ := os.ReadFile(f)
+	lines := strings.Split(string(data), "\n")
+	if line-1 >= len(lines) {
+		t.Fatalf("line %d out of range, file has %d lines", line, len(lines))
+	}
+	if !strings.Contains(lines[line-1], "- [ ] second task") {
+		t.Errorf("line %d = %q, expected task", line, lines[line-1])
+	}
+}
+
+func TestAppendTaskAt_NoTrailingNewline(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "note.md")
+	os.WriteFile(f, []byte("foo"), 0o644) // no trailing newline
+
+	line, err := AppendTaskAt(f, "my task")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if line != 2 {
+		t.Errorf("expected line 2, got %d", line)
+	}
+
+	data, _ := os.ReadFile(f)
+	lines := strings.Split(string(data), "\n")
+	if line-1 >= len(lines) {
+		t.Fatalf("line %d out of range, file has %d lines", line, len(lines))
+	}
+	if !strings.Contains(lines[line-1], "- [ ] my task") {
+		t.Errorf("line %d = %q, expected task", line, lines[line-1])
+	}
+}
+
+func TestAppendTaskAt_NewFile(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "new.md")
+
+	line, err := AppendTaskAt(f, "first task")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if line != 2 {
+		t.Errorf("expected line 2, got %d", line)
+	}
+}
