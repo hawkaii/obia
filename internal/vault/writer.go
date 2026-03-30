@@ -3,8 +3,10 @@ package vault
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/hawkaii/obia/internal/task"
 )
@@ -40,15 +42,79 @@ func ToggleTask(t *task.Task) error {
 	return os.WriteFile(t.Source.FilePath, []byte(strings.Join(lines, "\n")), 0o644)
 }
 
+// ResolveTaskFile determines where to add a new task based on the target setting.
+// target: "daily" tries today's daily note, "default" uses the default task file.
+func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target string) string {
+	defaultPath := filepath.Join(vaultPath, defaultFile)
+
+	if target != "daily" {
+		return defaultPath
+	}
+
+	// Check if the daily notes folder exists
+	dailyDir := filepath.Join(vaultPath, dailyFolder)
+	if info, err := os.Stat(dailyDir); err != nil || !info.IsDir() {
+		return defaultPath
+	}
+
+	// Build today's daily note path
+	today := time.Now().Format(dailyFormat)
+	dailyPath := filepath.Join(dailyDir, today+".md")
+
+	// If it already exists, use it
+	if _, err := os.Stat(dailyPath); err == nil {
+		return dailyPath
+	}
+
+	// Try to create from template
+	templatePath := filepath.Join(vaultPath, "templates", "diary template.md")
+	templateData, err := os.ReadFile(templatePath)
+	if err == nil {
+		// Replace template variables
+		content := strings.ReplaceAll(string(templateData), "{{date}}", today)
+		content = strings.ReplaceAll(content, "{{time}}", time.Now().Format("15:04"))
+		if err := os.WriteFile(dailyPath, []byte(content), 0o644); err != nil {
+			return defaultPath
+		}
+		return dailyPath
+	}
+
+	// No template — create a bare file
+	bare := fmt.Sprintf("# %s\n\n", today)
+	if err := os.WriteFile(dailyPath, []byte(bare), 0o644); err != nil {
+		return defaultPath
+	}
+	return dailyPath
+}
+
 // AppendTask adds a new task line to the given file.
 func AppendTask(filePath string, description string) error {
+	_, err := AppendTaskAt(filePath, description)
+	return err
+}
+
+// AppendTaskAt adds a new task line to the given file and returns the 1-indexed line number
+// where the task was written.
+func AppendTaskAt(filePath string, description string) (int, error) {
+	// Read existing content to count lines.
+	lineCount := 0
+	existing, err := os.ReadFile(filePath)
+	if err == nil {
+		lineCount = strings.Count(string(existing), "\n")
+	}
+	// lineCount is now the number of existing lines (0 if file doesn't exist).
+
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer f.Close()
 
-	line := fmt.Sprintf("\n- [ ] %s\n", description)
-	_, err = f.WriteString(line)
-	return err
+	taskLine := fmt.Sprintf("\n- [ ] %s\n", description)
+	if _, err = f.WriteString(taskLine); err != nil {
+		return 0, err
+	}
+
+	// The blank line adds 1, then the task is on the next line.
+	return lineCount + 2, nil
 }

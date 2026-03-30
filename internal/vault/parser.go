@@ -4,9 +4,12 @@ import (
 	"bufio"
 	"os"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/hawkaii/obia/internal/caldav"
 	"github.com/hawkaii/obia/internal/task"
 )
 
@@ -23,6 +26,12 @@ func ParseTasks(filePath string) ([]task.Task, error) {
 		return nil, err
 	}
 	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	fileMod := info.ModTime()
 
 	frontmatter := parseFrontmatter(f)
 	f.Seek(0, 0)
@@ -59,6 +68,7 @@ func ParseTasks(filePath string) ([]task.Task, error) {
 			Source: task.Source{
 				FilePath: filePath,
 				Line:     lineNum,
+				FileMod:  fileMod,
 			},
 		}
 
@@ -90,6 +100,25 @@ func ParseAllTasks(vaultPath string) ([]task.Task, error) {
 			continue // skip unreadable files
 		}
 		allTasks = append(allTasks, tasks...)
+	}
+
+	// Sort by file modification time, newest first.
+	// Within the same file, preserve line order.
+	sort.SliceStable(allTasks, func(i, j int) bool {
+		if allTasks[i].Source.FileMod.Equal(allTasks[j].Source.FileMod) {
+			return allTasks[i].Source.Line < allTasks[j].Source.Line
+		}
+		return allTasks[i].Source.FileMod.After(allTasks[j].Source.FileMod)
+	})
+
+	// Hydrate CalDAVUID from sync.json for tasks that have been pushed.
+	if uidMap, err := caldav.LoadUIDMap(); err == nil {
+		for i := range allTasks {
+			key := allTasks[i].Source.FilePath + ":" + strconv.Itoa(allTasks[i].Source.Line)
+			if uid, ok := uidMap[key]; ok {
+				allTasks[i].CalDAVUID = uid
+			}
+		}
 	}
 
 	return allTasks, nil

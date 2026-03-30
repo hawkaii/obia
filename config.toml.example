@@ -3,11 +3,13 @@ path = "/mnt/d/obsidian/notes"
 daily_notes_folder = "diary"
 daily_notes_format = "2006-01-02"
 default_task_file = "todo.md"
+add_task_target = "daily"       # "daily" = today's diary note, "default" = default_task_file
 
 [caldav]
 url = ""
 username = ""
 password = ""
+auto_push = false               # automatically push new tasks to CalDAV on add
 
 [ui]
 default_tab = "tasks"
