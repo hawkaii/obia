@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hawkaii/obia/internal/config"
@@ -67,7 +68,7 @@ func taskKey(t *task.Task) string {
 }
 
 // PushTask pushes a single task to CalDAV, generating a UID if needed.
-func PushTask(cfg config.CalDAV, t *task.Task) (string, error) {
+func PushTask(cfg config.CalDAV, t *task.Task, due *time.Time, priority int, status string) (string, error) {
 	uidMap, err := LoadUIDMap()
 	if err != nil {
 		return "", fmt.Errorf("loading sync map: %w", err)
@@ -79,7 +80,7 @@ func PushTask(cfg config.CalDAV, t *task.Task) (string, error) {
 		uid = uuid.New().String()
 	}
 
-	icsData := BuildVTodo(uid, t.Description, t.Due)
+	icsData := BuildVTodo(uid, t.Description, due, priority, status)
 	if err := PushTodo(cfg, uid, icsData); err != nil {
 		return "", err
 	}

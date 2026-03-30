@@ -6,8 +6,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/hawkaii/obia/internal/caldav"
 	"github.com/hawkaii/obia/internal/config"
 	"github.com/hawkaii/obia/internal/task"
+	"github.com/hawkaii/obia/internal/tui/components/pushform"
 	"github.com/hawkaii/obia/internal/vault"
 	appctx "github.com/hawkaii/obia/internal/tui/context"
 	"github.com/hawkaii/obia/internal/tui/keys"
@@ -20,6 +22,7 @@ type appMode int
 
 const (
 	modeBrowser appMode = iota
+	modePushForm
 	// modeChat — future
 )
 
@@ -46,6 +49,7 @@ type App struct {
 	activeTab int
 	cursor    int
 	loading   bool
+	pushForm  pushform.Model
 }
 
 func NewApp(cfg config.Config) App {
@@ -125,10 +129,20 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleKey(msg)
 	}
 
+	// Delegate non-key messages to push form for cursor blink etc.
+	if a.mode == modePushForm {
+		var cmd tea.Cmd
+		a.pushForm, cmd = a.pushForm.Update(msg)
+		return a, cmd
+	}
+
 	return a, nil
 }
 
 func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if a.mode == modePushForm {
+		return a.handlePushFormKey(msg)
+	}
 	switch a.inputMode {
 	case inputFilter:
 		return a.handleFilterKey(msg)
@@ -193,7 +207,8 @@ func (a App) handleBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		tasks := a.activeSection().Tasks()
 		if a.cursor < len(tasks) && a.ctx.Config.CalDAV.URL != "" {
 			t := &tasks[a.cursor]
-			return a, PushCalDAVCmd(a.ctx.Config.CalDAV, t)
+			a.pushForm = pushform.New(t)
+			a.mode = modePushForm
 		} else if a.ctx.Config.CalDAV.URL == "" {
 			a.message = "CalDAV not configured"
 		}
@@ -213,7 +228,7 @@ func (a App) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.Escape):
 		a.input = ""
 		a.inputMode = inputNone
-		a.refreshSections()
+		a.applySearch()
 	case key.Matches(msg, a.keys.Backspace):
 		if len(a.input) > 0 {
 			a.input = a.input[:len(a.input)-1]
@@ -255,6 +270,41 @@ func (a App) handleAddTaskKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
+func (a App) handlePushFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	a.pushForm, cmd = a.pushForm.Update(msg)
+
+	if a.pushForm.Cancelled() {
+		a.mode = modeBrowser
+		a.message = ""
+		return a, nil
+	}
+
+	if a.pushForm.Submitted() {
+		tasks := a.activeSection().Tasks()
+		if a.cursor < len(tasks) {
+			t := &tasks[a.cursor]
+			t.Description = a.pushForm.GetSummary()
+			due := a.pushForm.GetDue()
+			priority := a.pushForm.GetPriority()
+			status := a.pushForm.GetStatus()
+
+			uid, err := caldav.PushTask(a.ctx.Config.CalDAV, t, due, priority, status)
+			if err != nil {
+				a.message = "CalDAV push error: " + err.Error()
+			} else {
+				t.CalDAVUID = uid
+				a.syncBack(t)
+				a.message = "Pushed to CalDAV: " + t.Description
+			}
+		}
+		a.mode = modeBrowser
+		return a, nil
+	}
+
+	return a, cmd
+}
+
 func (a *App) activeSection() section.Section {
 	return a.sections[a.activeTab]
 }
@@ -286,6 +336,7 @@ func (a *App) syncBack(t *task.Task) {
 		if a.allTasks[i].Source == t.Source {
 			a.allTasks[i].Status = t.Status
 			a.allTasks[i].CalDAVUID = t.CalDAVUID
+			a.allTasks[i].Description = t.Description
 			break
 		}
 	}
@@ -328,6 +379,10 @@ func (a App) View() string {
 		b.WriteString(filterPromptStyle.Render("/") + a.input + "█\n")
 	} else if a.inputMode == inputAddTask {
 		b.WriteString(filterPromptStyle.Render("add: ") + a.input + "█\n")
+	} else if a.mode == modePushForm {
+		b.WriteString("\n")
+		b.WriteString(a.pushForm.View())
+		b.WriteString("\n")
 	}
 
 	// Message

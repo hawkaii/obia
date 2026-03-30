@@ -35,7 +35,7 @@ func AddTaskCmd(filePath, description string) tea.Cmd {
 // PushCalDAVCmd pushes a task to the CalDAV server.
 func PushCalDAVCmd(cfg config.CalDAV, t *task.Task) tea.Cmd {
 	return func() tea.Msg {
-		uid, err := caldav.PushTask(cfg, t)
+		uid, err := caldav.PushTask(cfg, t, nil, 0, "")
 		return CalDAVPushedMsg{Task: t, UID: uid, Err: err}
 	}
 }
@@ -57,7 +57,7 @@ func AddTaskWithAutoPushCmd(filePath, description string, caldavCfg config.CalDA
 					Line:     line,
 				},
 			}
-			uid, pushErr := caldav.PushTask(caldavCfg, t)
+			uid, pushErr := caldav.PushTask(caldavCfg, t, nil, 0, "")
 			if pushErr != nil {
 				return TaskAddedMsg{
 					Description: description,

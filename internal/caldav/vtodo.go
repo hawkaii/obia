@@ -7,8 +7,14 @@ import (
 )
 
 // BuildVTodo generates an iCalendar VTODO string.
-func BuildVTodo(uid, summary string, due *time.Time) string {
+// priority: 0 = omit, 1-9 per RFC 5545 (1=highest, 9=lowest).
+// status: defaults to "NEEDS-ACTION" if empty.
+func BuildVTodo(uid, summary string, due *time.Time, priority int, status string) string {
 	now := formatDateTime(time.Now())
+
+	if status == "" {
+		status = "NEEDS-ACTION"
+	}
 
 	var b strings.Builder
 	b.WriteString("BEGIN:VCALENDAR\r\n")
@@ -18,7 +24,11 @@ func BuildVTodo(uid, summary string, due *time.Time) string {
 	fmt.Fprintf(&b, "UID:%s\r\n", uid)
 	fmt.Fprintf(&b, "DTSTAMP:%s\r\n", now)
 	fmt.Fprintf(&b, "SUMMARY:%s\r\n", summary)
-	b.WriteString("STATUS:NEEDS-ACTION\r\n")
+	fmt.Fprintf(&b, "STATUS:%s\r\n", status)
+
+	if priority > 0 && priority <= 9 {
+		fmt.Fprintf(&b, "PRIORITY:%d\r\n", priority)
+	}
 
 	if due != nil {
 		if due.Hour() == 0 && due.Minute() == 0 && due.Second() == 0 {
