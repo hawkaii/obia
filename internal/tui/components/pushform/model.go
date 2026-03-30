@@ -170,19 +170,19 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	// Summary
-	b.WriteString(m.renderField(0, "Summary", m.summary.View()))
+	b.WriteString(m.renderField("Summary", m.summary.View()))
 	b.WriteString("\n")
 
 	// Due
-	b.WriteString(m.renderField(1, "Due", m.due.View()))
+	b.WriteString(m.renderField("Due", m.due.View()))
 	b.WriteString("\n")
 
 	// Priority
-	b.WriteString(m.renderField(2, "Priority", m.renderCycle(priorityOptions, m.priority, m.focusIndex == 2)))
+	b.WriteString(m.renderField("Priority", m.renderCycle(priorityOptions, m.priority, m.focusIndex == 2)))
 	b.WriteString("\n")
 
 	// Status
-	b.WriteString(m.renderField(3, "Status", m.renderCycle(statusOptions, m.status, m.focusIndex == 3)))
+	b.WriteString(m.renderField("Status", m.renderCycle(statusOptions, m.status, m.focusIndex == 3)))
 	b.WriteString("\n")
 
 	b.WriteString(hintStyle.Render("tab/shift+tab: navigate  left/right: cycle  enter: submit  esc: cancel"))
@@ -190,29 +190,17 @@ func (m Model) View() string {
 	return formStyle.Render(b.String())
 }
 
-func (m Model) renderField(idx int, label, value string) string {
+func (m Model) renderField(label, value string) string {
 	l := labelStyle.Render(label + ":")
-	if m.focusIndex == idx {
-		return fmt.Sprintf("%s %s", l, value)
-	}
 	return fmt.Sprintf("%s %s", l, value)
 }
 
 func (m Model) renderCycle(options []string, selected int, active bool) string {
-	var parts []string
-	for i, opt := range options {
-		if i == selected {
-			if active {
-				parts = append(parts, activeFieldStyle.Render("[ "+opt+" ]"))
-			} else {
-				parts = append(parts, inactiveFieldStyle.Render("[ "+opt+" ]"))
-			}
-		}
-	}
+	opt := options[selected]
 	if active {
-		return fmt.Sprintf("<< %s >>", strings.Join(parts, " "))
+		return fmt.Sprintf("<< %s >>", activeFieldStyle.Render("[ "+opt+" ]"))
 	}
-	return strings.Join(parts, " ")
+	return inactiveFieldStyle.Render("[ " + opt + " ]")
 }
 
 // Submitted returns true if the user pressed enter.

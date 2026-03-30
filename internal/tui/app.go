@@ -240,6 +240,7 @@ func (a App) handlePushFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.pushForm.Submitted() {
 		if a.cursor < len(a.filtered) {
 			t := &a.filtered[a.cursor]
+			t.Description = a.pushForm.GetSummary()
 			due := a.pushForm.GetDue()
 			priority := a.pushForm.GetPriority()
 			status := a.pushForm.GetStatus()
@@ -250,7 +251,7 @@ func (a App) handlePushFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				t.CalDAVUID = uid
 				a.syncBack(t)
-				a.message = "Pushed to CalDAV: " + a.pushForm.GetSummary()
+				a.message = "Pushed to CalDAV: " + t.Description
 			}
 		}
 		a.mode = modeNormal
@@ -287,6 +288,8 @@ func (a *App) syncBack(t *task.Task) {
 	for i := range a.allTasks {
 		if a.allTasks[i].Source == t.Source {
 			a.allTasks[i].Status = t.Status
+			a.allTasks[i].CalDAVUID = t.CalDAVUID
+			a.allTasks[i].Description = t.Description
 			break
 		}
 	}
