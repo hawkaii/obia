@@ -204,3 +204,71 @@ func TestAppendTaskAt_NewFile(t *testing.T) {
 		t.Errorf("expected line 2, got %d", line)
 	}
 }
+
+func TestWriteFrontmatterUID_SingleTaskFile(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "task.md")
+	content := "---\ntype: task\ndue: 2026-04-01\n---\n\n- [ ] Do the thing\n"
+	os.WriteFile(f, []byte(content), 0o644)
+
+	if err := WriteFrontmatterUID(f, "abc-123"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(f)
+	if !strings.Contains(string(data), "caldav-uid: abc-123") {
+		t.Errorf("expected caldav-uid in file, got:\n%s", string(data))
+	}
+}
+
+func TestWriteFrontmatterUID_UpdatesExisting(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "task.md")
+	content := "---\ntype: task\ncaldav-uid: old-uid\n---\n\n- [ ] Do the thing\n"
+	os.WriteFile(f, []byte(content), 0o644)
+
+	if err := WriteFrontmatterUID(f, "new-uid"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(f)
+	result := string(data)
+	if !strings.Contains(result, "caldav-uid: new-uid") {
+		t.Errorf("expected updated caldav-uid, got:\n%s", result)
+	}
+	if strings.Contains(result, "old-uid") {
+		t.Errorf("expected old-uid to be replaced, got:\n%s", result)
+	}
+}
+
+func TestWriteFrontmatterUID_SkipsMultiTaskFile(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "todo.md")
+	content := "---\ntitle: My Todo List\n---\n\n- [ ] Task one\n- [ ] Task two\n"
+	os.WriteFile(f, []byte(content), 0o644)
+
+	if err := WriteFrontmatterUID(f, "some-uid"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(f)
+	if strings.Contains(string(data), "caldav-uid") {
+		t.Errorf("expected no caldav-uid written to multi-task file, got:\n%s", string(data))
+	}
+}
+
+func TestWriteFrontmatterUID_SkipsNoFrontmatter(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "plain.md")
+	content := "# Plain Note\n\n- [ ] Task without frontmatter\n"
+	os.WriteFile(f, []byte(content), 0o644)
+
+	if err := WriteFrontmatterUID(f, "some-uid"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(f)
+	if strings.Contains(string(data), "caldav-uid") {
+		t.Errorf("expected no caldav-uid written to file without frontmatter, got:\n%s", string(data))
+	}
+}

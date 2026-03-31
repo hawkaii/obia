@@ -121,6 +121,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			msg.Task.CalDAVUID = msg.UID
 			a.syncBack(msg.Task)
+			// Persist UID to frontmatter for single-task files
+			_ = vault.WriteFrontmatterUID(msg.Task.Source.FilePath, msg.UID)
 			a.refreshSections()
 			a.message = "Pushed to CalDAV: " + msg.Task.Description
 		}
@@ -300,6 +302,8 @@ func (a App) handlePushFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				t.CalDAVUID = uid
 				a.syncBack(t)
+				// Persist UID to frontmatter for single-task files
+				_ = vault.WriteFrontmatterUID(t.Source.FilePath, uid)
 				a.message = "Pushed to CalDAV: " + t.Description
 			}
 		}

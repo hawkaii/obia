@@ -143,8 +143,9 @@ func extractTags(s string) []string {
 }
 
 type frontmatterData struct {
-	calDAVUID string
-	due       *time.Time
+	calDAVUID  string
+	due        *time.Time
+	isTaskFile bool // true if frontmatter contains "type: task"
 }
 
 func parseFrontmatter(f *os.File) frontmatterData {
@@ -175,6 +176,10 @@ func parseFrontmatter(f *os.File) frontmatterData {
 				data.due = &t
 			} else if t, err := time.Parse(time.RFC3339, value); err == nil {
 				data.due = &t
+			}
+		case "type":
+			if value == "task" {
+				data.isTaskFile = true
 			}
 		}
 	}
