@@ -65,6 +65,7 @@ func AddTaskWithAutoPushCmd(filePath, description string, caldavCfg config.CalDA
 					AutoPushErr: pushErr,
 				}
 			}
+			_ = vault.WriteFrontmatterUID(filePath, uid)
 			return TaskAddedMsg{
 				Description: description,
 				AutoPushUID: uid,

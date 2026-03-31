@@ -87,6 +87,61 @@ func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target st
 	return dailyPath
 }
 
+// WriteFrontmatterUID writes caldav-uid to the YAML frontmatter of filePath,
+// but only if the file has frontmatter containing "type: task".
+// Multi-task files (daily notes, todo.md) are skipped — returns nil.
+func WriteFrontmatterUID(filePath, uid string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", filePath, err)
+	}
+
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	// Must start with ---
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return nil
+	}
+
+	// Find the closing --- and check for "type: task"
+	closingIdx := -1
+	isTaskFile := false
+	for i := 1; i < len(lines); i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "---" {
+			closingIdx = i
+			break
+		}
+		key, value, ok := parseYAMLLine(trimmed)
+		if ok && key == "type" && value == "task" {
+			isTaskFile = true
+		}
+	}
+
+	// No closing --- found or not a single-task file
+	if closingIdx < 0 || !isTaskFile {
+		return nil
+	}
+
+	// Check if caldav-uid already exists in the frontmatter
+	for i := 1; i < closingIdx; i++ {
+		key, _, ok := parseYAMLLine(strings.TrimSpace(lines[i]))
+		if ok && key == "caldav-uid" {
+			// Replace existing value
+			lines[i] = "caldav-uid: " + uid
+			return os.WriteFile(filePath, []byte(strings.Join(lines, "\n")), 0o644)
+		}
+	}
+
+	// Insert before closing ---
+	newLines := make([]string, 0, len(lines)+1)
+	newLines = append(newLines, lines[:closingIdx]...)
+	newLines = append(newLines, "caldav-uid: "+uid)
+	newLines = append(newLines, lines[closingIdx:]...)
+	return os.WriteFile(filePath, []byte(strings.Join(newLines, "\n")), 0o644)
+}
+
 // AppendTask adds a new task line to the given file.
 func AppendTask(filePath string, description string) error {
 	_, err := AppendTaskAt(filePath, description)
