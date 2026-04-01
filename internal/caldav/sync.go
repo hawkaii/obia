@@ -68,7 +68,8 @@ func taskKey(t *task.Task) string {
 }
 
 // PushTask pushes a single task to CalDAV, generating a UID if needed.
-func PushTask(cfg config.CalDAV, t *task.Task, due *time.Time, priority int, status string) (string, error) {
+// description is an optional long-form body separate from the task summary.
+func PushTask(cfg config.CalDAV, t *task.Task, due *time.Time, priority int, status, description string) (string, error) {
 	uidMap, err := LoadUIDMap()
 	if err != nil {
 		return "", fmt.Errorf("loading sync map: %w", err)
@@ -79,8 +80,12 @@ func PushTask(cfg config.CalDAV, t *task.Task, due *time.Time, priority int, sta
 	if !exists {
 		uid = uuid.New().String()
 	}
+	// Use task's existing UID if it was hydrated from a task file
+	if t.CalDAVUID != "" {
+		uid = t.CalDAVUID
+	}
 
-	icsData := BuildVTodo(uid, t.Description, due, priority, status)
+	icsData := BuildVTodo(uid, t.Description, description, due, priority, status)
 	if err := PushTodo(cfg, uid, icsData); err != nil {
 		return "", err
 	}

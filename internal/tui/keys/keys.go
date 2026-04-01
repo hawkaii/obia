@@ -14,6 +14,7 @@ type KeyMap struct {
 	Filter     key.Binding
 	AddTask    key.Binding
 	Reload     key.Binding
+	Pull       key.Binding
 	ToggleView key.Binding
 	Quit       key.Binding
 	Escape     key.Binding
@@ -66,6 +67,10 @@ var DefaultKeyMap = KeyMap{
 		key.WithKeys("r"),
 		key.WithHelp("r", "reload"),
 	),
+	Pull: key.NewBinding(
+		key.WithKeys("R"),
+		key.WithHelp("R", "pull caldav"),
+	),
 	ToggleView: key.NewBinding(
 		key.WithKeys("v"),
 		key.WithHelp("v", "view"),
@@ -88,5 +93,5 @@ var DefaultKeyMap = KeyMap{
 
 // BrowserHelp returns the help text for the browser mode status bar.
 func BrowserHelp() string {
-	return "  ↑/k ↓/j navigate  enter: toggle  p: push caldav  /: filter  a: add  v: view  tab: switch  r: reload  q: quit"
+	return "  ↑/k ↓/j navigate  enter: toggle  a: add  p: push  R: pull  /: filter  v: view  tab: switch  r: reload  q: quit"
 }

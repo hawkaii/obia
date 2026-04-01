@@ -25,13 +25,14 @@ type Source struct {
 }
 
 type Task struct {
-	Description string
-	Status      Status
-	Due         *time.Time
-	Tags        []string
-	WikiLinks   []string
-	Source      Source
-	CalDAVUID   string
+	Description    string
+	Status         Status
+	Due            *time.Time
+	Tags           []string
+	WikiLinks      []string
+	Source         Source
+	CalDAVUID      string
+	LinkedTaskFile string // absolute path to tasks/<uid>.md; empty for plain tasks
 }
 
 func (t *Task) Toggle() {

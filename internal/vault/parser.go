@@ -3,6 +3,7 @@ package vault
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -14,9 +15,10 @@ import (
 )
 
 var (
-	taskPattern     = regexp.MustCompile(`^\s*[-*+] \[([ xX])\] (.+)$`)
-	wikiLinkPattern = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
-	tagPattern      = regexp.MustCompile(`(?:^|\s)#(\S+)`)
+	taskPattern       = regexp.MustCompile(`^\s*[-*+] \[([ xX])\] (.+)$`)
+	wikiLinkPattern   = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
+	tagPattern        = regexp.MustCompile(`(?:^|\s)#(\S+)`)
+	linkedTaskPattern = regexp.MustCompile(`^\[\[([^|\]]+)\|([^\]]+)\]\]$`)
 )
 
 // ParseTasks reads a markdown file and extracts all checkbox tasks.
@@ -72,7 +74,7 @@ func ParseTasks(filePath string) ([]task.Task, error) {
 			},
 		}
 
-		// Attach frontmatter metadata if present
+		// Attach frontmatter metadata if present (single-task files)
 		if frontmatter.calDAVUID != "" {
 			t.CalDAVUID = frontmatter.calDAVUID
 		}
@@ -87,7 +89,8 @@ func ParseTasks(filePath string) ([]task.Task, error) {
 }
 
 // ParseAllTasks scans the vault and parses tasks from every markdown file.
-func ParseAllTasks(vaultPath string) ([]task.Task, error) {
+// taskFilesFolder is the vault-relative folder where task files live (e.g. "tasks").
+func ParseAllTasks(vaultPath, taskFilesFolder string) ([]task.Task, error) {
 	files, err := ScanMarkdownFiles(vaultPath)
 	if err != nil {
 		return nil, err
@@ -111,13 +114,44 @@ func ParseAllTasks(vaultPath string) ([]task.Task, error) {
 		return allTasks[i].Source.FileMod.After(allTasks[j].Source.FileMod)
 	})
 
-	// Hydrate CalDAVUID from sync.json for tasks that have been pushed.
+	// Hydrate CalDAVUID from sync.json for plain pushed tasks.
 	if uidMap, err := caldav.LoadUIDMap(); err == nil {
 		for i := range allTasks {
 			key := allTasks[i].Source.FilePath + ":" + strconv.Itoa(allTasks[i].Source.Line)
 			if uid, ok := uidMap[key]; ok {
 				allTasks[i].CalDAVUID = uid
 			}
+		}
+	}
+
+	// Hydrate linked tasks: resolve [[uid|alias]] wikilinks to task files.
+	taskFilesDir := filepath.Join(vaultPath, taskFilesFolder)
+	for i := range allTasks {
+		m := linkedTaskPattern.FindStringSubmatch(strings.TrimSpace(allTasks[i].Description))
+		if m == nil {
+			continue
+		}
+		uid := m[1]
+		alias := m[2]
+		taskFile := filepath.Join(taskFilesDir, uid+".md")
+
+		f, err := os.Open(taskFile)
+		if err != nil {
+			// task file missing — keep raw description
+			continue
+		}
+		fm := parseFrontmatter(f)
+		f.Close()
+
+		allTasks[i].Description = alias
+		allTasks[i].LinkedTaskFile = taskFile
+		if fm.calDAVUID != "" {
+			allTasks[i].CalDAVUID = fm.calDAVUID
+		} else {
+			allTasks[i].CalDAVUID = uid
+		}
+		if fm.due != nil {
+			allTasks[i].Due = fm.due
 		}
 	}
 

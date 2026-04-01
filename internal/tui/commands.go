@@ -1,7 +1,12 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 	"github.com/hawkaii/obia/internal/caldav"
 	"github.com/hawkaii/obia/internal/config"
 	"github.com/hawkaii/obia/internal/task"
@@ -9,22 +14,41 @@ import (
 )
 
 // LoadTasksCmd scans the vault and returns all parsed tasks.
-func LoadTasksCmd(vaultPath string) tea.Cmd {
+func LoadTasksCmd(vaultPath, taskFilesFolder string) tea.Cmd {
 	return func() tea.Msg {
-		tasks, err := vault.ParseAllTasks(vaultPath)
+		tasks, err := vault.ParseAllTasks(vaultPath, taskFilesFolder)
 		return TasksLoadedMsg{Tasks: tasks, Err: err}
 	}
 }
 
 // ToggleTaskCmd writes the toggled checkbox back to the source file.
-func ToggleTaskCmd(t *task.Task) tea.Cmd {
+// For linked tasks, also updates status in the task file and pushes to CalDAV.
+func ToggleTaskCmd(t *task.Task, caldavCfg config.CalDAV) tea.Cmd {
 	return func() tea.Msg {
-		err := vault.ToggleTask(t)
-		return TaskToggledMsg{Task: t, Err: err}
+		if err := vault.ToggleTask(t); err != nil {
+			return TaskToggledMsg{Task: t, Err: err}
+		}
+
+		if t.LinkedTaskFile != "" {
+			newStatus := "NEEDS-ACTION"
+			if t.Status == task.Done {
+				newStatus = "COMPLETED"
+			}
+			_ = vault.UpdateTaskFileStatus(t.LinkedTaskFile, newStatus)
+
+			if caldavCfg.URL != "" {
+				_, pushErr := caldav.PushTask(caldavCfg, t, t.Due, 0, newStatus, "")
+				if pushErr != nil {
+					return TaskToggledMsg{Task: t, CalDAVErr: pushErr}
+				}
+			}
+		}
+
+		return TaskToggledMsg{Task: t}
 	}
 }
 
-// AddTaskCmd appends a new task to the given file.
+// AddTaskCmd appends a plain task with no task file.
 func AddTaskCmd(filePath, description string) tea.Cmd {
 	return func() tea.Msg {
 		err := vault.AppendTask(filePath, description)
@@ -32,46 +56,137 @@ func AddTaskCmd(filePath, description string) tea.Cmd {
 	}
 }
 
-// PushCalDAVCmd pushes a task to the CalDAV server.
-func PushCalDAVCmd(cfg config.CalDAV, t *task.Task) tea.Cmd {
+// AddTaskWithMetaCmd creates a task file, writes [[uid|title]] into the target file,
+// and optionally pushes to CalDAV.
+func AddTaskWithMetaCmd(
+	filePath, summary, description string,
+	due *time.Time,
+	priority int,
+	status string,
+	push bool,
+	cfg config.Config,
+) tea.Cmd {
 	return func() tea.Msg {
-		uid, err := caldav.PushTask(cfg, t, nil, 0, "")
-		return CalDAVPushedMsg{Task: t, UID: uid, Err: err}
+		taskFilesDir, _ := vault.EnsureTaskFolder(cfg.Vault.Path, cfg.Vault.TaskFilesFolder)
+
+		uid := uuid.New().String()
+		var pushErr error
+
+		if push && cfg.CalDAV.URL != "" {
+			tmpTask := &task.Task{Description: summary, CalDAVUID: uid}
+			uid2, err := caldav.PushTask(cfg.CalDAV, tmpTask, due, priority, status, description)
+			if err != nil {
+				pushErr = err
+			} else {
+				uid = uid2
+			}
+		}
+
+		if err := vault.CreateTaskFile(taskFilesDir, uid, summary, description, due, priority, status); err != nil {
+			return TaskAddedMsg{Description: summary, Err: err}
+		}
+
+		_, err := vault.AppendTaskAt(filePath, "[["+uid+"|"+summary+"]]")
+		if err != nil {
+			return TaskAddedMsg{Description: summary, Err: err}
+		}
+
+		if pushErr != nil {
+			return TaskAddedMsg{Description: summary, AutoPushErr: pushErr}
+		}
+		if push {
+			return TaskAddedMsg{Description: summary, AutoPushUID: uid}
+		}
+		return TaskAddedMsg{Description: summary}
 	}
 }
 
-// AddTaskWithAutoPushCmd appends a task and optionally pushes to CalDAV if auto_push is enabled.
-func AddTaskWithAutoPushCmd(filePath, description string, caldavCfg config.CalDAV) tea.Cmd {
+// LinkExistingTaskCmd converts a plain task into a linked task:
+// creates a task file, rewrites the source line to [[uid|title]], optionally pushes.
+func LinkExistingTaskCmd(
+	t *task.Task,
+	summary, description string,
+	due *time.Time,
+	priority int,
+	status string,
+	push bool,
+	cfg config.Config,
+) tea.Cmd {
 	return func() tea.Msg {
-		line, err := vault.AppendTaskAt(filePath, description)
+		taskFilesDir, _ := vault.EnsureTaskFolder(cfg.Vault.Path, cfg.Vault.TaskFilesFolder)
+
+		uid := uuid.New().String()
+		var pushErr error
+
+		if push && cfg.CalDAV.URL != "" {
+			pushTask := &task.Task{Description: summary, CalDAVUID: uid}
+			uid2, err := caldav.PushTask(cfg.CalDAV, pushTask, due, priority, status, description)
+			if err != nil {
+				pushErr = err
+			} else {
+				uid = uid2
+			}
+		}
+
+		if err := vault.CreateTaskFile(taskFilesDir, uid, summary, description, due, priority, status); err != nil {
+			return TaskAddedMsg{Description: summary, Err: err}
+		}
+
+		if err := vault.RewriteTaskLine(t.Source.FilePath, t.Source.Line, uid, summary); err != nil {
+			return TaskAddedMsg{Description: summary, Err: err}
+		}
+
+		if pushErr != nil {
+			return TaskAddedMsg{Description: summary, AutoPushErr: pushErr}
+		}
+		if push {
+			return TaskAddedMsg{Description: summary, AutoPushUID: uid}
+		}
+		return TaskAddedMsg{Description: summary}
+	}
+}
+
+// PullCalDAVCmd fetches all VTODOs from the server and syncs local task files.
+func PullCalDAVCmd(cfg config.Config) tea.Cmd {
+	return func() tea.Msg {
+		if cfg.CalDAV.URL == "" {
+			return PullCalDAVMsg{}
+		}
+
+		todos, err := caldav.PullTodos(cfg.CalDAV)
 		if err != nil {
-			return TaskAddedMsg{Description: description, Err: err}
+			return PullCalDAVMsg{Err: err}
 		}
 
-		// Auto-push if configured
-		if caldavCfg.AutoPush && caldavCfg.URL != "" {
-			t := &task.Task{
-				Description: description,
-				Source: task.Source{
-					FilePath: filePath,
-					Line:     line,
-				},
+		taskFilesDir, notify := vault.EnsureTaskFolder(cfg.Vault.Path, cfg.Vault.TaskFilesFolder)
+		inboxPath := filepath.Join(cfg.Vault.Path, cfg.Vault.InboxFile)
+
+		updated, created := 0, 0
+
+		for _, todo := range todos {
+			if todo.UID == "" {
+				continue
 			}
-			uid, pushErr := caldav.PushTask(caldavCfg, t, nil, 0, "")
-			if pushErr != nil {
-				return TaskAddedMsg{
-					Description: description,
-					Err:         nil,
-					AutoPushErr: pushErr,
-				}
-			}
-			_ = vault.WriteFrontmatterUID(filePath, uid)
-			return TaskAddedMsg{
-				Description: description,
-				AutoPushUID: uid,
+			taskFile := filepath.Join(taskFilesDir, todo.UID+".md")
+
+			if _, statErr := os.Stat(taskFile); statErr == nil {
+				_ = vault.UpdateTaskFileFrontmatter(taskFile, todo.Due, todo.Status, todo.Priority)
+				updated++
+			} else {
+				_ = vault.CreateTaskFile(taskFilesDir, todo.UID, todo.Summary, todo.Description, todo.Due, todo.Priority, todo.Status)
+				_ = vault.AppendToFile(inboxPath, "- [ ] [["+todo.UID+"|"+todo.Summary+"]]")
+				created++
 			}
 		}
 
-		return TaskAddedMsg{Description: description}
+		return PullCalDAVMsg{Updated: updated, Created: created, Notify: notify}
+	}
+}
+
+// PushCalDAVCmd pushes an existing task to CalDAV via the push form.
+func PushCalDAVCmd(cfg config.CalDAV, t *task.Task) tea.Cmd {
+	return func() tea.Msg {
+		uid, err := caldav.PushTask(cfg, t, nil, 0, "", "")
+		return CalDAVPushedMsg{Task: t, UID: uid, Err: err}
 	}
 }
