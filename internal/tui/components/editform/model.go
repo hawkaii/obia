@@ -75,6 +75,7 @@ type Model struct {
 func New(t *task.Task, showPush bool) Model {
 	si := textinput.New()
 	si.Placeholder = "Task description"
+	si.Prompt = ""
 	si.CharLimit = 200
 	si.Width = 40
 	si.SetValue(t.Description)
@@ -82,6 +83,7 @@ func New(t *task.Task, showPush bool) Model {
 
 	dd := textinput.New()
 	dd.Placeholder = "YYYY-MM-DD"
+	dd.Prompt = ""
 	dd.CharLimit = 10
 	dd.Width = 12
 	if t.Due != nil {
@@ -90,6 +92,7 @@ func New(t *task.Task, showPush bool) Model {
 
 	dt := textinput.New()
 	dt.Placeholder = "HH:MM"
+	dt.Prompt = ""
 	dt.CharLimit = 5
 	dt.Width = 7
 	if t.Due != nil && (t.Due.Hour() != 0 || t.Due.Minute() != 0) {
@@ -98,6 +101,7 @@ func New(t *task.Task, showPush bool) Model {
 
 	desc := textinput.New()
 	desc.Placeholder = "Optional description"
+	desc.Prompt = ""
 	desc.CharLimit = 500
 	desc.Width = 40
 	desc.SetValue(t.Body)

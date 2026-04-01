@@ -101,6 +101,7 @@ type Model struct {
 func New(summary string, targets []string, defaultTargetIdx int, defaultPush bool, showPush bool) Model {
 	si := textinput.New()
 	si.Placeholder = "Task description"
+	si.Prompt = ""
 	si.CharLimit = 200
 	si.Width = 40
 	if summary != "" {
@@ -110,23 +111,27 @@ func New(summary string, targets []string, defaultTargetIdx int, defaultPush boo
 
 	ti := textinput.New()
 	ti.Placeholder = "type to filter..."
+	ti.Prompt = ""
 	ti.CharLimit = 80
 	ti.Width = 40
 
 	dd := textinput.New()
 	dd.Placeholder = "YYYY-MM-DD"
+	dd.Prompt = ""
 	dd.CharLimit = 10
 	dd.Width = 12
 	dd.SetValue(time.Now().AddDate(0, 0, 1).Format("2006-01-02"))
 
 	dt := textinput.New()
 	dt.Placeholder = "HH:MM"
+	dt.Prompt = ""
 	dt.CharLimit = 5
 	dt.Width = 7
 	dt.SetValue(time.Now().Format("15:04"))
 
 	desc := textinput.New()
 	desc.Placeholder = "Optional description"
+	desc.Prompt = ""
 	desc.CharLimit = 500
 	desc.Width = 40
 
