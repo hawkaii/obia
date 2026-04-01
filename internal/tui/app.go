@@ -473,16 +473,24 @@ func (a App) View() string {
 
 	var b strings.Builder
 
-	header := lipgloss.JoinVertical(lipgloss.Left,
-		"  "+logoStyle.Render(logo),
-		"  "+logoSubtitleStyle.Render("manage tasks like a god"),
+	logoBlock := lipgloss.NewStyle().Padding(0, 2).Height(2).Render(
+		lipgloss.JoinHorizontal(lipgloss.Bottom,
+			logoStyle.Render(logo),
+			" ",
+			lipgloss.PlaceVertical(2, lipgloss.Bottom, logoSubtitleStyle.Render("manage tasks like a god")),
+		),
 	)
-	b.WriteString(header)
-	b.WriteString("\n")
-	b.WriteString(a.renderTabBar(w))
+	tabsBlock := lipgloss.NewStyle().
+		Width(w-lipgloss.Width(logoBlock)).
+		Height(2).
+		AlignVertical(lipgloss.Bottom).
+		Render(a.renderTabs())
+	b.WriteString(tabBarStyle.Width(w).Height(2).Render(
+		lipgloss.JoinHorizontal(lipgloss.Bottom, tabsBlock, logoBlock),
+	))
 	b.WriteString("\n")
 
-	listHeight := a.ctx.Height - 9
+	listHeight := a.ctx.Height - 7
 	if listHeight < 1 {
 		listHeight = 10
 	}
@@ -515,7 +523,7 @@ func (a App) View() string {
 	return b.String()
 }
 
-func (a App) renderTabBar(width int) string {
+func (a App) renderTabs() string {
 	var tabs []string
 	for i, s := range a.sections {
 		name := s.Title()
@@ -527,6 +535,5 @@ func (a App) renderTabBar(width int) string {
 			tabs = append(tabs, inactiveTabStyle.Render(" "+label+" "))
 		}
 	}
-	bar := strings.Join(tabs, "")
-	return tabBarStyle.Width(width).Render(bar)
+	return strings.Join(tabs, "")
 }
