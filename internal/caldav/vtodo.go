@@ -28,7 +28,8 @@ func BuildVTodo(uid, summary, description string, due *time.Time, priority int, 
 	fmt.Fprintf(&b, "STATUS:%s\r\n", status)
 
 	if description != "" {
-		fmt.Fprintf(&b, "DESCRIPTION:%s\r\n", description)
+		escaped := strings.NewReplacer(`\`, `\\`, ",", `\,`, ";", `\;`, "\n", `\n`).Replace(description)
+		fmt.Fprintf(&b, "DESCRIPTION:%s\r\n", escaped)
 	}
 
 	if priority > 0 && priority <= 9 {

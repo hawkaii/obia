@@ -18,7 +18,7 @@ var (
 	taskPattern       = regexp.MustCompile(`^\s*[-*+] \[([ xX])\] (.+)$`)
 	wikiLinkPattern   = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
 	tagPattern        = regexp.MustCompile(`(?:^|\s)#(\S+)`)
-	linkedTaskPattern = regexp.MustCompile(`^\[\[([^|\]]+)\|([^\]]+)\]\]$`)
+	linkedTaskPattern = regexp.MustCompile(`\[\[([^| \]]+)\|([^\]]+)\]\]`)
 )
 
 // ParseTasks reads a markdown file and extracts all checkbox tasks.

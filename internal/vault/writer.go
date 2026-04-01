@@ -183,7 +183,7 @@ func CreateTaskFile(folderPath, uid, title, description string, due *time.Time, 
 	b.WriteString("type: task\n")
 	fmt.Fprintf(&b, "caldav-uid: %s\n", uid)
 	if due != nil {
-		b.WriteString("due: " + due.Format("2006-01-02") + "\n")
+		b.WriteString("due: " + due.Format(time.RFC3339) + "\n")
 	}
 	if priority > 0 {
 		fmt.Fprintf(&b, "priority: %d\n", priority)
@@ -281,7 +281,7 @@ func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, p
 		switch key {
 		case "due":
 			if due != nil {
-				lines[i] = "due: " + due.Format("2006-01-02")
+				lines[i] = "due: " + due.Format(time.RFC3339)
 			}
 			updatedDue = true
 		case "status":
@@ -300,7 +300,7 @@ func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, p
 	// Insert missing fields before closing ---
 	var extra []string
 	if !updatedDue && due != nil {
-		extra = append(extra, "due: "+due.Format("2006-01-02"))
+		extra = append(extra, "due: "+due.Format(time.RFC3339))
 	}
 	if !updatedStatus && status != "" {
 		extra = append(extra, "status: "+status)

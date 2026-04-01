@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -161,7 +162,7 @@ func PullCalDAVCmd(cfg config.Config) tea.Cmd {
 		taskFilesDir, notify := vault.EnsureTaskFolder(cfg.Vault.Path, cfg.Vault.TaskFilesFolder)
 		inboxPath := filepath.Join(cfg.Vault.Path, cfg.Vault.InboxFile)
 
-		updated, created := 0, 0
+		updated, created, fileErrs := 0, 0, 0
 
 		for _, todo := range todos {
 			if todo.UID == "" {
@@ -170,16 +171,32 @@ func PullCalDAVCmd(cfg config.Config) tea.Cmd {
 			taskFile := filepath.Join(taskFilesDir, todo.UID+".md")
 
 			if _, statErr := os.Stat(taskFile); statErr == nil {
-				_ = vault.UpdateTaskFileFrontmatter(taskFile, todo.Due, todo.Status, todo.Priority)
-				updated++
+				if err := vault.UpdateTaskFileFrontmatter(taskFile, todo.Due, todo.Status, todo.Priority); err != nil {
+					fileErrs++
+				} else {
+					updated++
+				}
 			} else {
-				_ = vault.CreateTaskFile(taskFilesDir, todo.UID, todo.Summary, todo.Description, todo.Due, todo.Priority, todo.Status)
-				_ = vault.AppendToFile(inboxPath, "- [ ] [["+todo.UID+"|"+todo.Summary+"]]")
-				created++
+				if err := vault.CreateTaskFile(taskFilesDir, todo.UID, todo.Summary, todo.Description, todo.Due, todo.Priority, todo.Status); err != nil {
+					fileErrs++
+					continue
+				}
+				if err := vault.AppendToFile(inboxPath, "- [ ] [["+todo.UID+"|"+todo.Summary+"]]"); err != nil {
+					fileErrs++
+				} else {
+					created++
+				}
 			}
 		}
 
-		return PullCalDAVMsg{Updated: updated, Created: created, Notify: notify}
+		msg := PullCalDAVMsg{Updated: updated, Created: created, Notify: notify}
+		if fileErrs > 0 {
+			msg.Notify = fmt.Sprintf("%d file write error(s)", fileErrs)
+			if notify != "" {
+				msg.Notify = notify + " · " + msg.Notify
+			}
+		}
+		return msg
 	}
 }
 
