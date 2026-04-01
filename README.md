@@ -269,6 +269,25 @@ Set `auto_push = true` in `[caldav]` to push every new task automatically on add
 
 ---
 
+## Works With
+
+Obia works with **any folder of markdown files** — not just Obsidian. It only needs standard checkbox syntax and `.md` files.
+
+| Tool | Compatibility |
+|------|--------------|
+| [Obsidian](https://obsidian.md) | Full |
+| [Logseq](https://logseq.com) | Full — same `- [ ]` syntax, wikilinks, YAML frontmatter |
+| [Foam](https://foambubble.github.io/foam/) | Full — VS Code extension, same conventions |
+| [Zettlr](https://zettlr.com) | Full — standard markdown + frontmatter |
+| [Dendron](https://www.dendron.so) | Full — VS Code extension, hierarchical `.md` files |
+| Any folder of `.md` files | Full — VS Code, Neovim, iA Writer, etc. |
+| [Joplin](https://joplinapp.org) | Partial — only with filesystem sync enabled |
+| Org-mode / Roam / Notion | ✗ — different formats |
+
+Point `vault.path` in your config at any markdown directory and Obia will scan it.
+
+---
+
 ## Roadmap
 
 - [ ] Task detail view — press `d` to render `tasks/<uid>.md` as a preview overlay
