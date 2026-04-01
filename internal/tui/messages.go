@@ -10,8 +10,9 @@ type TasksLoadedMsg struct {
 
 // TaskToggledMsg is sent after a task checkbox is written back to disk.
 type TaskToggledMsg struct {
-	Task *task.Task
-	Err  error
+	Task      *task.Task
+	Err       error
+	CalDAVErr error // non-nil if toggle succeeded but CalDAV push failed
 }
 
 // TaskAddedMsg is sent after a new task is appended to a file.
@@ -27,6 +28,14 @@ type CalDAVPushedMsg struct {
 	Task *task.Task
 	UID  string
 	Err  error
+}
+
+// PullCalDAVMsg is sent after pulling tasks from CalDAV.
+type PullCalDAVMsg struct {
+	Updated  int    // task files updated
+	Created  int    // new task files created from remote
+	Notify   string // non-empty if folder conflict occurred
+	Err      error
 }
 
 // ErrorMsg represents a generic error.

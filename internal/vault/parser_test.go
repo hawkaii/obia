@@ -106,7 +106,7 @@ func TestParseAllTasks(t *testing.T) {
 	os.MkdirAll(skip, 0o755)
 	os.WriteFile(filepath.Join(skip, "config.md"), []byte("- [ ] should be skipped\n"), 0o644)
 
-	tasks, err := ParseAllTasks(dir)
+	tasks, err := ParseAllTasks(dir, "tasks")
 	if err != nil {
 		t.Fatal(err)
 	}

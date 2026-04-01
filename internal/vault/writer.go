@@ -43,12 +43,17 @@ func ToggleTask(t *task.Task) error {
 }
 
 // ResolveTaskFile determines where to add a new task based on the target setting.
-// target: "daily" tries today's daily note, "default" uses the default task file.
+// target: "daily" → today's daily note, "default"/"" → defaultFile, anything else → vault-relative path.
 func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target string) string {
 	defaultPath := filepath.Join(vaultPath, defaultFile)
 
-	if target != "daily" {
+	switch target {
+	case "default", "":
 		return defaultPath
+	case "daily":
+		// handled below
+	default:
+		return filepath.Join(vaultPath, target)
 	}
 
 	// Check if the daily notes folder exists
@@ -140,6 +145,190 @@ func WriteFrontmatterUID(filePath, uid string) error {
 	newLines = append(newLines, "caldav-uid: "+uid)
 	newLines = append(newLines, lines[closingIdx:]...)
 	return os.WriteFile(filePath, []byte(strings.Join(newLines, "\n")), 0o644)
+}
+
+// EnsureTaskFolder creates the task files folder under vaultPath.
+// If the name already exists as a file (not a dir), tries name+"_1", etc.
+// Returns the resolved folder path and a notification string (empty if no conflict).
+func EnsureTaskFolder(vaultPath, folder string) (string, string) {
+	base := filepath.Join(vaultPath, folder)
+	candidate := base
+	suffix := 1
+	for {
+		info, err := os.Stat(candidate)
+		if os.IsNotExist(err) {
+			_ = os.MkdirAll(candidate, 0o755)
+			if candidate != base {
+				return candidate, fmt.Sprintf("'%s' exists as file, using '%s' instead", folder, filepath.Base(candidate))
+			}
+			return candidate, ""
+		}
+		if info.IsDir() {
+			return candidate, ""
+		}
+		candidate = fmt.Sprintf("%s_%d", base, suffix)
+		suffix++
+	}
+}
+
+// CreateTaskFile writes a task file at folderPath/<uid>.md with YAML frontmatter,
+// a title header, and an optional description body.
+func CreateTaskFile(folderPath, uid, title, description string, due *time.Time, priority int, status string) error {
+	if status == "" {
+		status = "NEEDS-ACTION"
+	}
+
+	var b strings.Builder
+	b.WriteString("---\n")
+	b.WriteString("type: task\n")
+	fmt.Fprintf(&b, "caldav-uid: %s\n", uid)
+	if due != nil {
+		b.WriteString("due: " + due.Format(time.RFC3339) + "\n")
+	}
+	if priority > 0 {
+		fmt.Fprintf(&b, "priority: %d\n", priority)
+	}
+	fmt.Fprintf(&b, "status: %s\n", status)
+	b.WriteString("---\n\n")
+	fmt.Fprintf(&b, "# %s\n", title)
+	if description != "" {
+		b.WriteString("\n")
+		b.WriteString(description)
+		b.WriteString("\n")
+	}
+
+	filePath := filepath.Join(folderPath, uid+".md")
+	return os.WriteFile(filePath, []byte(b.String()), 0o644)
+}
+
+// RewriteTaskLine rewrites the task at lineNum in filePath so the description
+// becomes a wikilink alias: [[uid|alias]], preserving the checkbox state.
+func RewriteTaskLine(filePath string, lineNum int, uid, alias string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", filePath, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	idx := lineNum - 1
+	if idx < 0 || idx >= len(lines) {
+		return fmt.Errorf("line %d out of range in %s", lineNum, filePath)
+	}
+
+	matches := checkboxPattern.FindStringSubmatch(lines[idx])
+	if matches == nil {
+		return fmt.Errorf("line %d is not a task checkbox", lineNum)
+	}
+
+	lines[idx] = matches[1] + matches[2] + "] [[" + uid + "|" + alias + "]]"
+	return os.WriteFile(filePath, []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+// UpdateTaskFileStatus updates the status: field in a task file's YAML frontmatter.
+func UpdateTaskFileStatus(filePath, status string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", filePath, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return nil
+	}
+
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			break
+		}
+		key, _, ok := parseYAMLLine(strings.TrimSpace(lines[i]))
+		if ok && key == "status" {
+			lines[i] = "status: " + status
+			return os.WriteFile(filePath, []byte(strings.Join(lines, "\n")), 0o644)
+		}
+	}
+	return nil
+}
+
+// UpdateTaskFileFrontmatter overwrites due/status/priority fields in a task file's frontmatter.
+func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, priority int) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", filePath, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return nil
+	}
+
+	closingIdx := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			closingIdx = i
+			break
+		}
+	}
+	if closingIdx < 0 {
+		return nil
+	}
+
+	updatedDue, updatedStatus, updatedPriority := false, false, false
+	for i := 1; i < closingIdx; i++ {
+		key, _, ok := parseYAMLLine(strings.TrimSpace(lines[i]))
+		if !ok {
+			continue
+		}
+		switch key {
+		case "due":
+			if due != nil {
+				lines[i] = "due: " + due.Format(time.RFC3339)
+			}
+			updatedDue = true
+		case "status":
+			if status != "" {
+				lines[i] = "status: " + status
+			}
+			updatedStatus = true
+		case "priority":
+			if priority > 0 {
+				lines[i] = fmt.Sprintf("priority: %d", priority)
+			}
+			updatedPriority = true
+		}
+	}
+
+	// Insert missing fields before closing ---
+	var extra []string
+	if !updatedDue && due != nil {
+		extra = append(extra, "due: "+due.Format(time.RFC3339))
+	}
+	if !updatedStatus && status != "" {
+		extra = append(extra, "status: "+status)
+	}
+	if !updatedPriority && priority > 0 {
+		extra = append(extra, fmt.Sprintf("priority: %d", priority))
+	}
+
+	if len(extra) > 0 {
+		newLines := make([]string, 0, len(lines)+len(extra))
+		newLines = append(newLines, lines[:closingIdx]...)
+		newLines = append(newLines, extra...)
+		newLines = append(newLines, lines[closingIdx:]...)
+		lines = newLines
+	}
+
+	return os.WriteFile(filePath, []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+// AppendToFile appends a line to a file, creating it if needed.
+func AppendToFile(filePath, line string) error {
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = fmt.Fprintln(f, line)
+	return err
 }
 
 // AppendTask adds a new task line to the given file.

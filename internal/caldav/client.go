@@ -14,10 +14,12 @@ import (
 
 // RemoteTodo represents a task fetched from the CalDAV server.
 type RemoteTodo struct {
-	UID     string
-	Status  string
-	Summary string
-	Due     *time.Time
+	UID         string
+	Status      string
+	Summary     string
+	Description string
+	Due         *time.Time
+	Priority    int
 }
 
 func basicAuth(username, password string) string {
@@ -92,11 +94,13 @@ func PullTodos(cfg config.CalDAV) ([]RemoteTodo, error) {
 }
 
 var (
-	calDataRe  = regexp.MustCompile(`(?i)<(?:C:|cal:)?calendar-data[^>]*>([\s\S]*?)</(?:C:|cal:)?calendar-data>`)
-	uidRe      = regexp.MustCompile(`(?m)^UID:(.+)$`)
-	statusRe   = regexp.MustCompile(`(?m)^STATUS:(.+)$`)
-	summaryRe  = regexp.MustCompile(`(?m)^SUMMARY:(.+)$`)
-	dueRe      = regexp.MustCompile(`(?m)^DUE(?:;VALUE=DATE)?:(.+)$`)
+	calDataRe     = regexp.MustCompile(`(?i)<(?:C:|cal:)?calendar-data[^>]*>([\s\S]*?)</(?:C:|cal:)?calendar-data>`)
+	uidRe         = regexp.MustCompile(`(?m)^UID:(.+)$`)
+	statusRe      = regexp.MustCompile(`(?m)^STATUS:(.+)$`)
+	summaryRe     = regexp.MustCompile(`(?m)^SUMMARY:(.+)$`)
+	descriptionRe = regexp.MustCompile(`(?m)^DESCRIPTION:(.+)$`)
+	priorityRe    = regexp.MustCompile(`(?m)^PRIORITY:(.+)$`)
+	dueRe         = regexp.MustCompile(`(?m)^DUE(?:;VALUE=DATE)?:(.+)$`)
 )
 
 func parseCalendarResponse(body string) []RemoteTodo {
@@ -124,6 +128,12 @@ func parseCalendarResponse(body string) []RemoteTodo {
 		}
 		if sm := summaryRe.FindStringSubmatch(raw); sm != nil {
 			todo.Summary = strings.TrimSpace(sm[1])
+		}
+		if sm := descriptionRe.FindStringSubmatch(raw); sm != nil {
+			todo.Description = strings.TrimSpace(sm[1])
+		}
+		if sm := priorityRe.FindStringSubmatch(raw); sm != nil {
+			fmt.Sscanf(strings.TrimSpace(sm[1]), "%d", &todo.Priority)
 		}
 		if sm := dueRe.FindStringSubmatch(raw); sm != nil {
 			todo.Due = parseICalDate(strings.TrimSpace(sm[1]))
