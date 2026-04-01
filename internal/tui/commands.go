@@ -294,6 +294,6 @@ func EditTaskCmd(
 			}
 		}
 
-		return TaskEditedMsg{Task: t, NewSummary: newSummary, CalDAVErr: caldavErr}
+		return TaskEditedMsg{Task: t, NewSummary: newSummary, Reload: true, CalDAVErr: caldavErr}
 	}
 }
