@@ -11,13 +11,15 @@ import (
 )
 
 func main() {
-	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
-		commit := version.Commit
-		if len(commit) > 7 {
-			commit = commit[:7]
+	for _, arg := range os.Args[1:] {
+		if arg == "--version" || arg == "-v" {
+			commit := version.Commit
+			if len(commit) > 7 {
+				commit = commit[:7]
+			}
+			fmt.Printf("obia %s (%s, %s)\n", version.Version, commit, version.Date)
+			return
 		}
-		fmt.Printf("obia %s (%s, %s)\n", version.Version, commit, version.Date)
-		return
 	}
 
 	cfg, err := config.Load()
