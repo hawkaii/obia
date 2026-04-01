@@ -473,17 +473,16 @@ func (a App) View() string {
 
 	var b strings.Builder
 
-	header := lipgloss.JoinHorizontal(lipgloss.Bottom,
-		"  ",
-		logoStyle.Render(logo),
-		logoSubtitleStyle.Render("your vault, your terminal"),
+	header := lipgloss.JoinVertical(lipgloss.Left,
+		"  "+logoStyle.Render(logo),
+		"  "+logoSubtitleStyle.Render("manage tasks like a god"),
 	)
 	b.WriteString(header)
 	b.WriteString("\n")
 	b.WriteString(a.renderTabBar(w))
 	b.WriteString("\n")
 
-	listHeight := a.ctx.Height - 8
+	listHeight := a.ctx.Height - 9
 	if listHeight < 1 {
 		listHeight = 10
 	}
