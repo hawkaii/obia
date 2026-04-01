@@ -2,7 +2,20 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
+const logo = "" +
+	"█▀█ █▄▄ █ ▄▀█\n" +
+	"█▄█ █▄█ █ █▀█"
+
 var (
+	logoStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#7C3AED")).
+			Bold(true)
+
+	logoSubtitleStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("241")).
+				PaddingLeft(1)
+
+
 	activeTabStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("170")).

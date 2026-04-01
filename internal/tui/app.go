@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/hawkaii/obia/internal/config"
 	"github.com/hawkaii/obia/internal/task"
 	"github.com/hawkaii/obia/internal/tui/components/addform"
@@ -46,6 +48,8 @@ type App struct {
 	cursor    int
 	loading   bool
 
+	spinner spinner.Model
+
 	addForm      addform.Model
 	addFormTask  *task.Task // non-nil when p opens addform on an existing task
 	editForm     editform.Model
@@ -74,17 +78,25 @@ func NewApp(cfg config.Config) App {
 		}
 	}
 
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED"))
+
 	return App{
 		ctx:      ctx,
 		keys:     keys.DefaultKeyMap,
 		mode:     modeBrowser,
 		sections: sections,
 		loading:  true,
+		spinner:  sp,
 	}
 }
 
 func (a App) Init() tea.Cmd {
-	return LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder)
+	return tea.Batch(
+		LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder),
+		a.spinner.Tick,
+	)
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -169,6 +181,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			_ = vault.WriteFrontmatterUID(msg.Task.Source.FilePath, msg.UID)
 			a.refreshSections()
 			a.message = "Pushed to CalDAV: " + msg.Task.Description
+		}
+
+	case spinner.TickMsg:
+		if a.loading {
+			var cmd tea.Cmd
+			a.spinner, cmd = a.spinner.Update(msg)
+			return a, cmd
 		}
 
 	case tea.KeyMsg:
@@ -454,18 +473,24 @@ func (a App) View() string {
 
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("  Obia"))
+	header := lipgloss.JoinHorizontal(lipgloss.Bottom,
+		"  ",
+		logoStyle.Render(logo),
+		logoSubtitleStyle.Render("your vault, your terminal"),
+	)
+	b.WriteString(header)
 	b.WriteString("\n")
 	b.WriteString(a.renderTabBar(w))
 	b.WriteString("\n")
 
-	listHeight := a.ctx.Height - 7
+	listHeight := a.ctx.Height - 8
 	if listHeight < 1 {
 		listHeight = 10
 	}
 
 	if a.loading {
-		b.WriteString("  Loading tasks...\n")
+		msg := fmt.Sprintf("%s loading vault…", a.spinner.View())
+		b.WriteString(lipgloss.Place(w, listHeight, lipgloss.Center, lipgloss.Center, msg))
 	} else {
 		b.WriteString(a.activeSection().View(w, listHeight, a.cursor, true))
 	}
