@@ -300,6 +300,18 @@ Point `vault.path` in your config at any markdown directory and Obia will scan i
 
 ---
 
+## Sponsoring
+
+If you find Obia useful, consider supporting the project:
+
+<iframe src="https://github.com/sponsors/hawkaii/card" title="Sponsor hawkaii" height="225" width="600" style="border: 0;"></iframe>
+
+## Discord
+
+Have questions or want to chat? Join the community:
+
+[Discord](https://discord.gg/5YfG9nS74h)
+
 ## License
 
 [MIT](LICENSE)
