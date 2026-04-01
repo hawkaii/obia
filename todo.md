@@ -39,6 +39,8 @@ Add Cobra for CLI framework, then implement:
 - [x] CalDAV push form: set due date, priority, and status before pushing (interactive overlay)
 - [x] smart task add: route new tasks to today's daily note or default file (`add_task_target` config)
 - [x] CalDAV auto-push: automatically push new tasks on add (`auto_push` config flag)
+- [ ] CalDAV: add `DESCRIPTION` (long-form body, separate from SUMMARY), `DTSTART` (start date), and time support (HH:MM on due/start fields, sends full datetime to VTODO instead of date-only) to add form and VTODO builder
+- [ ] add form: upgrade Description field from single-line input to multi-line textarea
 - [ ] task detail view: press `d` or `enter` to see full task metadata (due, tags, source, CalDAV UID)
 - [ ] open task source in Obsidian: press `o` to launch `obsidian://open?vault=...&file=...` URI — opens the note in the Obsidian app directly from Obia (works from WSL via Windows interop)
 

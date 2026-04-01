@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hawkaii/obia/internal/caldav"
 	"github.com/hawkaii/obia/internal/config"
@@ -40,16 +42,16 @@ func PushCalDAVCmd(cfg config.CalDAV, t *task.Task) tea.Cmd {
 	}
 }
 
-// AddTaskWithAutoPushCmd appends a task and optionally pushes to CalDAV if auto_push is enabled.
-func AddTaskWithAutoPushCmd(filePath, description string, caldavCfg config.CalDAV) tea.Cmd {
+// AddTaskWithMetaCmd appends a task and optionally pushes to CalDAV with full metadata.
+// push=true performs the CalDAV push; push=false skips it regardless of caldavCfg.AutoPush.
+func AddTaskWithMetaCmd(filePath, description string, due *time.Time, priority int, status string, push bool, caldavCfg config.CalDAV) tea.Cmd {
 	return func() tea.Msg {
 		line, err := vault.AppendTaskAt(filePath, description)
 		if err != nil {
 			return TaskAddedMsg{Description: description, Err: err}
 		}
 
-		// Auto-push if configured
-		if caldavCfg.AutoPush && caldavCfg.URL != "" {
+		if push && caldavCfg.URL != "" {
 			t := &task.Task{
 				Description: description,
 				Source: task.Source{
@@ -57,11 +59,10 @@ func AddTaskWithAutoPushCmd(filePath, description string, caldavCfg config.CalDA
 					Line:     line,
 				},
 			}
-			uid, pushErr := caldav.PushTask(caldavCfg, t, nil, 0, "")
+			uid, pushErr := caldav.PushTask(caldavCfg, t, due, priority, status)
 			if pushErr != nil {
 				return TaskAddedMsg{
 					Description: description,
-					Err:         nil,
 					AutoPushErr: pushErr,
 				}
 			}

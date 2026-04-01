@@ -43,12 +43,17 @@ func ToggleTask(t *task.Task) error {
 }
 
 // ResolveTaskFile determines where to add a new task based on the target setting.
-// target: "daily" tries today's daily note, "default" uses the default task file.
+// target: "daily" → today's daily note, "default"/"" → defaultFile, anything else → vault-relative path.
 func ResolveTaskFile(vaultPath, dailyFolder, dailyFormat, defaultFile, target string) string {
 	defaultPath := filepath.Join(vaultPath, defaultFile)
 
-	if target != "daily" {
+	switch target {
+	case "default", "":
 		return defaultPath
+	case "daily":
+		// handled below
+	default:
+		return filepath.Join(vaultPath, target)
 	}
 
 	// Check if the daily notes folder exists

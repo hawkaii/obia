@@ -9,11 +9,12 @@ import (
 )
 
 type Vault struct {
-	Path             string `toml:"path"`
-	DailyNotesFolder string `toml:"daily_notes_folder"`
-	DailyNotesFormat string `toml:"daily_notes_format"`
-	DefaultTaskFile  string `toml:"default_task_file"`
-	AddTaskTarget    string `toml:"add_task_target"` // "daily" | "default"
+	Path             string   `toml:"path"`
+	DailyNotesFolder string   `toml:"daily_notes_folder"`
+	DailyNotesFormat string   `toml:"daily_notes_format"`
+	DefaultTaskFile  string   `toml:"default_task_file"`
+	AddTaskTarget    string   `toml:"add_task_target"` // "daily" | "default" | vault-relative path
+	ExtraTargets     []string `toml:"extra_targets"`   // additional vault-relative paths
 }
 
 type CalDAV struct {
