@@ -539,7 +539,7 @@ func (m Model) GetDue() *time.Time {
 	if dateVal == "" {
 		return nil
 	}
-	t, err := time.Parse("2006-01-02", dateVal)
+	t, err := time.ParseInLocation("2006-01-02", dateVal, time.Local)
 	if err != nil {
 		return nil
 	}
@@ -547,7 +547,7 @@ func (m Model) GetDue() *time.Time {
 	if timeVal != "" {
 		var h, min int
 		if _, err := fmt.Sscanf(timeVal, "%d:%d", &h, &min); err == nil {
-			t = time.Date(t.Year(), t.Month(), t.Day(), h, min, 0, 0, t.Location())
+			t = time.Date(t.Year(), t.Month(), t.Day(), h, min, 0, 0, time.Local)
 		}
 	}
 	return &t

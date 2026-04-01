@@ -262,23 +262,15 @@ func EditTaskCmd(
 			return TaskEditedMsg{Task: t, NewSummary: newSummary, Reload: true, CalDAVErr: caldavErr}
 		}
 
-		// Linked task → update task file
+		// Linked task → update task file in one pass
+		if err := vault.UpdateTaskFileContent(t.LinkedTaskFile, newSummary, body, due, status, priority); err != nil {
+			return TaskEditedMsg{Task: t, Err: err}
+		}
 		if newSummary != t.Description {
-			if err := vault.UpdateTaskFileTitle(t.LinkedTaskFile, newSummary); err != nil {
-				return TaskEditedMsg{Task: t, Err: err}
-			}
 			uid := filepath.Base(strings.TrimSuffix(t.LinkedTaskFile, ".md"))
 			if err := vault.RewriteTaskLine(t.Source.FilePath, t.Source.Line, uid, newSummary); err != nil {
 				return TaskEditedMsg{Task: t, Err: err}
 			}
-		}
-
-		if err := vault.UpdateTaskFileBody(t.LinkedTaskFile, body); err != nil {
-			return TaskEditedMsg{Task: t, Err: err}
-		}
-
-		if err := vault.UpdateTaskFileFrontmatter(t.LinkedTaskFile, due, status, priority); err != nil {
-			return TaskEditedMsg{Task: t, Err: err}
 		}
 
 		// Push if already synced to CalDAV (auto-push, no toggle needed)

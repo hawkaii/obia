@@ -326,6 +326,99 @@ func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, p
 	return os.WriteFile(filePath, []byte(strings.Join(filtered, "\n")), 0o644)
 }
 
+// UpdateTaskFileContent updates title, body, and frontmatter fields (due/status/priority)
+// in a single read-modify-write pass.
+func UpdateTaskFileContent(filePath, title, body string, due *time.Time, status string, priority int) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", filePath, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return nil
+	}
+
+	// Locate closing frontmatter ---
+	closingIdx := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			closingIdx = i
+			break
+		}
+	}
+	if closingIdx < 0 {
+		return nil
+	}
+
+	// Rewrite frontmatter fields
+	updatedDue, updatedStatus, updatedPriority := false, false, false
+	filtered := make([]string, 0, len(lines))
+	filtered = append(filtered, lines[0])
+	for i := 1; i < closingIdx; i++ {
+		key, _, ok := parseYAMLLine(strings.TrimSpace(lines[i]))
+		if !ok {
+			filtered = append(filtered, lines[i])
+			continue
+		}
+		switch key {
+		case "due":
+			updatedDue = true
+			if due != nil {
+				filtered = append(filtered, "due: "+due.Format(time.RFC3339))
+			}
+		case "status":
+			updatedStatus = true
+			if status != "" {
+				filtered = append(filtered, "status: "+status)
+			} else {
+				filtered = append(filtered, lines[i])
+			}
+		case "priority":
+			updatedPriority = true
+			if priority > 0 {
+				filtered = append(filtered, fmt.Sprintf("priority: %d", priority))
+			}
+		default:
+			filtered = append(filtered, lines[i])
+		}
+	}
+	if !updatedDue && due != nil {
+		filtered = append(filtered, "due: "+due.Format(time.RFC3339))
+	}
+	if !updatedStatus && status != "" {
+		filtered = append(filtered, "status: "+status)
+	}
+	if !updatedPriority && priority > 0 {
+		filtered = append(filtered, fmt.Sprintf("priority: %d", priority))
+	}
+	filtered = append(filtered, lines[closingIdx]) // closing ---
+
+	// Find title line and rewrite title + body
+	titleIdx := -1
+	for i := closingIdx + 1; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "# ") {
+			titleIdx = i
+			break
+		}
+	}
+
+	if titleIdx >= 0 {
+		// Keep lines between closing --- and title (blank lines)
+		filtered = append(filtered, lines[closingIdx+1:titleIdx]...)
+		filtered = append(filtered, "# "+title)
+		filtered = append(filtered, "")
+		if body != "" {
+			filtered = append(filtered, body)
+		}
+	} else {
+		// No title found — append remaining lines unchanged
+		filtered = append(filtered, lines[closingIdx+1:]...)
+	}
+
+	return os.WriteFile(filePath, []byte(strings.Join(filtered, "\n")), 0o644)
+}
+
 // AppendToFile appends a line to a file, creating it if needed.
 func AppendToFile(filePath, line string) error {
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
