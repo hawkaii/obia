@@ -61,7 +61,7 @@ func NewApp(cfg config.Config) App {
 
 	sections := []section.Section{
 		tasksection.New("Tasks", vp, df, dfmt, tasksection.FilterOpen),
-		tasksection.New("Today", vp, df, dfmt, tasksection.FilterToday),
+		tasksection.New("Weekly", vp, df, dfmt, tasksection.FilterWeekly),
 		tasksection.New("Overdue", vp, df, dfmt, tasksection.FilterOverdue),
 		tasksection.New("CalDAV", vp, df, dfmt, tasksection.FilterCalDAV),
 	}
