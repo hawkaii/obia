@@ -14,7 +14,7 @@ Your Obsidian vault, in the terminal. A fast, interactive TUI for managing tasks
 </p>
 -->
 
-Obia scans every `.md` file in your [Obsidian](https://obsidian.md) vault, pulls out `- [ ]` tasks, and lets you browse, filter, toggle, and sync them from your terminal. Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea).
+Obia scans every `.md` file in your [Obsidian](https://obsidian.md) vault, pulls out `- [ ]` tasks, and lets you browse, filter, toggle, add, edit, and sync them from your terminal. Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
 ---
 
@@ -24,11 +24,13 @@ Obia scans every `.md` file in your [Obsidian](https://obsidian.md) vault, pulls
 - **Tabbed views** — Tasks, Today, Overdue, CalDAV — switch with <kbd>Tab</kbd>
 - **Vim-style navigation** — <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>g</kbd>/<kbd>G</kbd> for top/bottom
 - **Toggle done** — Hit <kbd>Enter</kbd> to check/uncheck, writes back to the `.md` file instantly
-- **Smart task add** — Press <kbd>a</kbd> to add a task; routes to today's daily note or default file based on config
+- **Rich task add** — Press <kbd>a</kbd> to open a form: summary, target file (fuzzy picker), due date, time, description, priority, status, optional CalDAV push
+- **Edit tasks** — Press <kbd>e</kbd> to edit any task; plain tasks auto-upgrade to linked tasks when metadata is set
 - **Fuzzy search** — <kbd>/</kbd> to filter with fuzzy matching across all task descriptions
-- **Grouped view** — Press <kbd>:</kbd> to toggle between flat list and tasks grouped by source file
-- **CalDAV sync** — Push tasks to any CalDAV server with <kbd>p</kbd> (Radicale, Nextcloud, iCloud, etc.)
-- **CalDAV push form** — Set due date, priority, and status in an interactive overlay before pushing
+- **Grouped view** — Press <kbd>v</kbd> to toggle between flat list and tasks grouped by source file
+- **Task files** — Linked tasks stored as `tasks/<uid>.md` with YAML frontmatter; wikilinks keep your vault clean
+- **CalDAV sync** — Push tasks to any CalDAV server with <kbd>p</kbd> (Radicale, Nextcloud, iCloud, Tasks.org, etc.)
+- **CalDAV pull** — Press <kbd>R</kbd> to pull all VTODOs from your CalDAV server; new remote tasks land in your inbox
 - **CalDAV auto-push** — Optionally push new tasks to CalDAV automatically on add
 - **Wikilinks & tags** — Extracts `[[links]]` and `#tags` from task descriptions
 - **Fast** — Scans 800+ files in under a second
@@ -67,16 +69,19 @@ path = "/path/to/your/obsidian/vault"
 daily_notes_folder = "diary"
 daily_notes_format = "2006-01-02"
 default_task_file = "todo.md"
-add_task_target = "daily"   # "daily" → today's note, "default" → default_task_file
+add_task_target = "daily"       # default target when pressing `a`: "daily" or "default"
+task_files_folder = "tasks"     # folder where task files (tasks/<uid>.md) are stored
+inbox_file = "tasks/inbox.md"   # file where pulled CalDAV tasks are appended
+extra_targets = [               # additional target files shown in the add/edit form picker
+    "projects/work.md",
+    "projects/personal.md",
+]
 
 [caldav]
 url = ""
 username = ""
 password = ""
-auto_push = false           # push new tasks to CalDAV automatically on add
-
-[ui]
-default_tab = "tasks"
+auto_push = false               # push new tasks to CalDAV automatically on add
 ```
 
 ### 2. Run it
@@ -98,12 +103,14 @@ That's it. You'll see all your open tasks across the vault.
 | <kbd>g</kbd> / <kbd>G</kbd> | Jump to top / bottom |
 | <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> | Switch tabs |
 | <kbd>Enter</kbd> | Toggle task done/undone |
-| <kbd>a</kbd> | Add new task (routes to daily note or default file) |
+| <kbd>a</kbd> | Add new task (opens rich form) |
+| <kbd>e</kbd> | Edit task (summary, due date/time, description, priority, status) |
+| <kbd>p</kbd> | Upgrade plain task to linked task (opens form pre-filled) |
+| <kbd>R</kbd> | Pull all tasks from CalDAV server |
 | <kbd>/</kbd> | Fuzzy search / filter |
-| <kbd>:</kbd> | Toggle flat / grouped-by-file view |
-| <kbd>p</kbd> | Push task to CalDAV (opens form for due/priority/status) |
+| <kbd>v</kbd> | Toggle flat / grouped-by-file view |
 | <kbd>r</kbd> | Reload vault |
-| <kbd>Esc</kbd> | Clear filter / cancel |
+| <kbd>Esc</kbd> | Clear filter / cancel form |
 | <kbd>q</kbd> | Quit |
 
 ---
@@ -111,15 +118,56 @@ That's it. You'll see all your open tasks across the vault.
 ## Tabs
 
 - **Tasks** — All open tasks across your vault
-- **Today** — Tasks from today's daily note + tasks due today
+- **Today** — Tasks due today
 - **Overdue** — Tasks past their due date
 - **CalDAV** — Tasks synced with your CalDAV server
 
 ---
 
+## Task Model
+
+Obia has two kinds of tasks:
+
+### Plain tasks
+Standard Obsidian checkbox syntax in any `.md` file:
+```markdown
+- [ ] buy groceries
+- [x] finished task
+- [ ] task with [[wikilink]] and #tag
+```
+
+### Linked tasks
+When you add metadata (due date, priority, etc.) or push to CalDAV, Obia creates a task file and rewrites the checkbox as a wikilink alias:
+
+```markdown
+- [ ] [[3f8a1b2c-...|buy groceries]]
+```
+
+The task file at `tasks/<uid>.md` stores all the metadata:
+
+```markdown
+---
+type: task
+caldav-uid: 3f8a1b2c-...
+due: 2026-04-02T09:00:00Z
+priority: 5
+status: NEEDS-ACTION
+---
+
+# buy groceries
+
+Optional longer description here.
+```
+
+This keeps your vault markdown clean while preserving full CalDAV metadata.
+
+---
+
 ## CalDAV Sync
 
-Obia can push tasks to any CalDAV-compatible server. Fill in the `[caldav]` section of your config:
+Obia syncs with any CalDAV-compatible server (Radicale, Nextcloud, iCloud, Tasks.org, etc.).
+
+Fill in the `[caldav]` section of your config:
 
 ```toml
 [caldav]
@@ -128,34 +176,21 @@ username = "you"
 password = "secret"
 ```
 
-Then press <kbd>p</kbd> on any task to open the push form. You can edit the summary, set a due date, choose priority (none / 1 / 5 / 9), and set CalDAV status (NEEDS-ACTION, IN-PROCESS, COMPLETED, CANCELLED) before pushing.
+### Push
+Press <kbd>p</kbd> on a plain task to open the form — set due date, time, description, priority, and status, then push. The task line is rewritten to `[[uid|title]]` and a task file is created.
 
-UID mappings are stored in `~/.config/obia/sync.json` and hydrated back into tasks on every load — your vault markdown stays clean.
+When adding a new task with <kbd>a</kbd>, toggle the **Push?** field in the form to push immediately.
 
-To push automatically whenever you add a task, set `auto_push = true` in `[caldav]`.
+### Pull
+Press <kbd>R</kbd> to fetch all VTODOs from the server:
+- Existing task files are updated (due date, status, priority)
+- New remote tasks get a task file created and a `- [ ] [[uid|title]]` line appended to your inbox file (`tasks/inbox.md` by default)
 
----
+### Toggle sync
+Toggling a linked task (checking/unchecking) automatically updates the task file status and pushes the change to CalDAV.
 
-## Task Format
-
-Obia looks for standard Obsidian checkbox syntax in any `.md` file:
-
-```markdown
-- [ ] open task
-- [x] completed task
-- [ ] task with [[wikilink]] and #tag
-```
-
-Files with YAML frontmatter are also supported for CalDAV metadata:
-
-```yaml
----
-type: task
-title: "Deploy the fix"
-due: 2026-04-01
-caldav-uid: abc-123-def
----
-```
+### Auto-push
+Set `auto_push = true` in `[caldav]` to push every new task automatically on add.
 
 ---
 
@@ -173,6 +208,8 @@ caldav-uid: abc-123-def
                            ▼
                     ┌─────────────┐
                     │ Task Parser │──▶ extracts - [ ] lines
+                    │             │──▶ resolves [[uid|alias]] wikilinks
+                    │             │──▶ hydrates due/status/priority from task files
                     └─────────────┘
                            │
                            ▼
@@ -184,6 +221,7 @@ caldav-uid: abc-123-def
                            ▼
                     ┌─────────────┐
                     │ Writer      │──▶ toggles checkboxes in .md files
+                    │             │──▶ creates/updates tasks/<uid>.md
                     └─────────────┘
 ```
 
@@ -201,15 +239,13 @@ caldav-uid: abc-123-def
 
 ## Roadmap
 
+- [ ] Task detail view — press `d` to render `tasks/<uid>.md` as a preview overlay
+- [ ] Open in Obsidian — press `o` to launch `obsidian://open?vault=...&file=...`
 - [ ] CLI flags (Cobra) — `--vault`, `--config`, `--debug`, `--no-tui`
 - [ ] Daily tab — all tasks from `diary/*.md` across all dates
-- [ ] Task detail view — `d` to see full metadata (due, tags, source, CalDAV UID)
 - [ ] First-run setup wizard
 - [ ] mtime-based task caching (skip unchanged files)
-- [ ] Chat mode (`ctrl+t` to toggle, `modeChat` in state machine)
-- [ ] Voice input via Whisper API
-- [ ] AI auto-linking to vault notes
-- [ ] Flutter mobile app
+- [ ] Multi-line description textarea
 
 ---
 
