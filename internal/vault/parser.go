@@ -153,6 +153,9 @@ func ParseAllTasks(vaultPath, taskFilesFolder string) ([]task.Task, error) {
 		if fm.due != nil {
 			allTasks[i].Due = fm.due
 		}
+		allTasks[i].Priority = fm.priority
+		allTasks[i].CalDAVStatus = fm.status
+		allTasks[i].Body = readTaskFileBody(taskFile)
 	}
 
 	return allTasks, nil
@@ -180,6 +183,8 @@ type frontmatterData struct {
 	calDAVUID  string
 	due        *time.Time
 	isTaskFile bool // true if frontmatter contains "type: task"
+	priority   int
+	status     string
 }
 
 func parseFrontmatter(f *os.File) frontmatterData {
@@ -215,10 +220,49 @@ func parseFrontmatter(f *os.File) frontmatterData {
 			if value == "task" {
 				data.isTaskFile = true
 			}
+		case "priority":
+			if p, err := strconv.Atoi(value); err == nil {
+				data.priority = p
+			}
+		case "status":
+			data.status = value
 		}
 	}
 
 	return data
+}
+
+// readTaskFileBody reads the body text from a task file (content after the # Title heading).
+func readTaskFileBody(filePath string) string {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(data), "\n")
+	inFrontmatter := false
+	pastFrontmatter := false
+	pastTitle := false
+	var body []string
+	for _, line := range lines {
+		if !pastFrontmatter {
+			if strings.TrimSpace(line) == "---" {
+				if !inFrontmatter {
+					inFrontmatter = true
+				} else {
+					pastFrontmatter = true
+				}
+			}
+			continue
+		}
+		if !pastTitle {
+			if strings.HasPrefix(line, "# ") {
+				pastTitle = true
+			}
+			continue
+		}
+		body = append(body, line)
+	}
+	return strings.TrimSpace(strings.Join(body, "\n"))
 }
 
 func parseYAMLLine(line string) (key, value string, ok bool) {

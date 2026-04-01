@@ -6,11 +6,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/hawkaii/obia/internal/caldav"
 	"github.com/hawkaii/obia/internal/config"
 	"github.com/hawkaii/obia/internal/task"
 	"github.com/hawkaii/obia/internal/tui/components/addform"
-	"github.com/hawkaii/obia/internal/tui/components/pushform"
+	"github.com/hawkaii/obia/internal/tui/components/editform"
 	"github.com/hawkaii/obia/internal/vault"
 	appctx "github.com/hawkaii/obia/internal/tui/context"
 	"github.com/hawkaii/obia/internal/tui/keys"
@@ -22,8 +21,8 @@ type appMode int
 
 const (
 	modeBrowser appMode = iota
-	modePushForm
 	modeAddForm
+	modeEditForm
 )
 
 type inputMode int
@@ -47,9 +46,10 @@ type App struct {
 	cursor    int
 	loading   bool
 
-	pushForm     pushform.Model
 	addForm      addform.Model
 	addFormTask  *task.Task // non-nil when p opens addform on an existing task
+	editForm     editform.Model
+	editFormTask *task.Task
 }
 
 func NewApp(cfg config.Config) App {
@@ -131,6 +131,27 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder)
 		}
 
+	case TaskEditedMsg:
+		if msg.Err != nil {
+			a.message = "Edit error: " + msg.Err.Error()
+		} else if msg.Reload {
+			if msg.CalDAVErr != nil {
+				a.message = "Saved · CalDAV push failed: " + msg.CalDAVErr.Error()
+			} else {
+				a.message = "Task updated"
+			}
+			return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder)
+		} else {
+			msg.Task.Description = msg.NewSummary
+			a.syncBack(msg.Task)
+			a.refreshSections()
+			if msg.CalDAVErr != nil {
+				a.message = "Saved · CalDAV push failed: " + msg.CalDAVErr.Error()
+			} else {
+				a.message = "Task updated"
+			}
+		}
+
 	case CalDAVPushedMsg:
 		if msg.Err != nil {
 			a.message = "CalDAV push error: " + msg.Err.Error()
@@ -146,14 +167,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleKey(msg)
 	}
 
-	if a.mode == modePushForm {
-		var cmd tea.Cmd
-		a.pushForm, cmd = a.pushForm.Update(msg)
-		return a, cmd
-	}
 	if a.mode == modeAddForm {
 		var cmd tea.Cmd
 		a.addForm, cmd = a.addForm.Update(msg)
+		return a, cmd
+	}
+	if a.mode == modeEditForm {
+		var cmd tea.Cmd
+		a.editForm, cmd = a.editForm.Update(msg)
 		return a, cmd
 	}
 
@@ -162,10 +183,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch a.mode {
-	case modePushForm:
-		return a.handlePushFormKey(msg)
 	case modeAddForm:
 		return a.handleAddFormKey(msg)
+	case modeEditForm:
+		return a.handleEditFormKey(msg)
 	}
 	switch a.inputMode {
 	case inputFilter:
@@ -259,6 +280,18 @@ func (a App) handleBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			ts.ToggleGrouped()
 		}
 
+	case key.Matches(msg, a.keys.EditTask):
+		tasks := a.activeSection().Tasks()
+		if a.cursor >= len(tasks) {
+			break
+		}
+		t := &tasks[a.cursor]
+		showPush := a.ctx.Config.CalDAV.URL != "" && t.CalDAVUID == ""
+		a.editForm = editform.New(t, showPush)
+		a.editFormTask = t
+		a.mode = modeEditForm
+		return a, nil
+
 	case key.Matches(msg, a.keys.Reload):
 		a.loading = true
 		return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder)
@@ -305,6 +338,7 @@ func (a App) handleAddFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 		due := a.addForm.GetDue()
 		priority := a.addForm.GetPriority()
 		status := a.addForm.GetStatus()
+		description := a.addForm.GetDescription()
 		push := a.addForm.GetPush()
 		cfg := a.ctx.Config
 
@@ -312,49 +346,39 @@ func (a App) handleAddFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if a.addFormTask != nil {
 			// p key path: link an existing plain task
-			return a, LinkExistingTaskCmd(a.addFormTask, summary, "", due, priority, status, push, cfg)
+			return a, LinkExistingTaskCmd(a.addFormTask, summary, description, due, priority, status, push, cfg)
 		}
 
 		// a key path: create new task
 		vcfg := cfg.Vault
 		filePath := vault.ResolveTaskFile(vcfg.Path, vcfg.DailyNotesFolder, vcfg.DailyNotesFormat, vcfg.DefaultTaskFile, target)
-		return a, AddTaskWithMetaCmd(filePath, summary, "", due, priority, status, push, cfg)
+		return a, AddTaskWithMetaCmd(filePath, summary, description, due, priority, status, push, cfg)
 	}
 
 	return a, cmd
 }
 
-func (a App) handlePushFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (a App) handleEditFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	a.pushForm, cmd = a.pushForm.Update(msg)
+	a.editForm, cmd = a.editForm.Update(msg)
 
-	if a.pushForm.Cancelled() {
+	if a.editForm.Cancelled() {
 		a.mode = modeBrowser
 		a.message = ""
 		return a, nil
 	}
 
-	if a.pushForm.Submitted() {
-		tasks := a.activeSection().Tasks()
-		if a.cursor < len(tasks) {
-			t := &tasks[a.cursor]
-			t.Description = a.pushForm.GetSummary()
-			due := a.pushForm.GetDue()
-			priority := a.pushForm.GetPriority()
-			status := a.pushForm.GetStatus()
+	if a.editForm.Submitted() {
+		summary := a.editForm.GetSummary()
+		due := a.editForm.GetDue()
+		priority := a.editForm.GetPriority()
+		status := a.editForm.GetStatus()
+		description := a.editForm.GetDescription()
+		push := a.editForm.GetPush()
+		cfg := a.ctx.Config
 
-			uid, err := caldav.PushTask(a.ctx.Config.CalDAV, t, due, priority, status, "")
-			if err != nil {
-				a.message = "CalDAV push error: " + err.Error()
-			} else {
-				t.CalDAVUID = uid
-				a.syncBack(t)
-				_ = vault.WriteFrontmatterUID(t.Source.FilePath, uid)
-				a.message = "Pushed to CalDAV: " + t.Description
-			}
-		}
 		a.mode = modeBrowser
-		return a, nil
+		return a, EditTaskCmd(a.editFormTask, summary, description, due, priority, status, push, cfg)
 	}
 
 	return a, cmd
@@ -438,13 +462,13 @@ func (a App) View() string {
 
 	if a.inputMode == inputFilter {
 		b.WriteString(filterPromptStyle.Render("/") + a.input + "█\n")
-	} else if a.mode == modePushForm {
-		b.WriteString("\n")
-		b.WriteString(a.pushForm.View())
-		b.WriteString("\n")
 	} else if a.mode == modeAddForm {
 		b.WriteString("\n")
 		b.WriteString(a.addForm.View())
+		b.WriteString("\n")
+	} else if a.mode == modeEditForm {
+		b.WriteString("\n")
+		b.WriteString(a.editForm.View())
 		b.WriteString("\n")
 	}
 

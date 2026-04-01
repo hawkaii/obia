@@ -273,51 +273,57 @@ func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, p
 	}
 
 	updatedDue, updatedStatus, updatedPriority := false, false, false
+
+	// First pass: update or remove existing fields.
+	// Build filtered lines to handle removals (due=nil clears the field, priority=0 clears it).
+	filtered := make([]string, 0, len(lines))
+	filtered = append(filtered, lines[0]) // opening ---
 	for i := 1; i < closingIdx; i++ {
 		key, _, ok := parseYAMLLine(strings.TrimSpace(lines[i]))
 		if !ok {
+			filtered = append(filtered, lines[i])
 			continue
 		}
 		switch key {
 		case "due":
-			if due != nil {
-				lines[i] = "due: " + due.Format(time.RFC3339)
-			}
 			updatedDue = true
+			if due != nil {
+				filtered = append(filtered, "due: "+due.Format(time.RFC3339))
+			}
+			// due==nil: omit the line (clear due date)
 		case "status":
-			if status != "" {
-				lines[i] = "status: " + status
-			}
 			updatedStatus = true
-		case "priority":
-			if priority > 0 {
-				lines[i] = fmt.Sprintf("priority: %d", priority)
+			if status != "" {
+				filtered = append(filtered, "status: "+status)
+			} else {
+				filtered = append(filtered, lines[i]) // keep existing
 			}
+		case "priority":
 			updatedPriority = true
+			if priority > 0 {
+				filtered = append(filtered, fmt.Sprintf("priority: %d", priority))
+			}
+			// priority==0: omit the line (clear priority)
+		default:
+			filtered = append(filtered, lines[i])
 		}
 	}
 
 	// Insert missing fields before closing ---
-	var extra []string
 	if !updatedDue && due != nil {
-		extra = append(extra, "due: "+due.Format(time.RFC3339))
+		filtered = append(filtered, "due: "+due.Format(time.RFC3339))
 	}
 	if !updatedStatus && status != "" {
-		extra = append(extra, "status: "+status)
+		filtered = append(filtered, "status: "+status)
 	}
 	if !updatedPriority && priority > 0 {
-		extra = append(extra, fmt.Sprintf("priority: %d", priority))
+		filtered = append(filtered, fmt.Sprintf("priority: %d", priority))
 	}
 
-	if len(extra) > 0 {
-		newLines := make([]string, 0, len(lines)+len(extra))
-		newLines = append(newLines, lines[:closingIdx]...)
-		newLines = append(newLines, extra...)
-		newLines = append(newLines, lines[closingIdx:]...)
-		lines = newLines
-	}
+	// Re-append closing --- and everything after
+	filtered = append(filtered, lines[closingIdx:]...)
 
-	return os.WriteFile(filePath, []byte(strings.Join(lines, "\n")), 0o644)
+	return os.WriteFile(filePath, []byte(strings.Join(filtered, "\n")), 0o644)
 }
 
 // AppendToFile appends a line to a file, creating it if needed.
@@ -361,4 +367,96 @@ func AppendTaskAt(filePath string, description string) (int, error) {
 
 	// The blank line adds 1, then the task is on the next line.
 	return lineCount + 2, nil
+}
+
+// UpdatePlainTaskDescription rewrites the description text of a plain task checkbox line.
+func UpdatePlainTaskDescription(filePath string, lineNum int, newDesc string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", filePath, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	idx := lineNum - 1
+	if idx < 0 || idx >= len(lines) {
+		return fmt.Errorf("line %d out of range in %s", lineNum, filePath)
+	}
+
+	matches := checkboxPattern.FindStringSubmatch(lines[idx])
+	if matches == nil {
+		return fmt.Errorf("line %d is not a task checkbox", lineNum)
+	}
+
+	lines[idx] = matches[1] + matches[2] + "] " + newDesc
+	return os.WriteFile(filePath, []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+// UpdateTaskFileTitle replaces the # Title heading in a task file.
+func UpdateTaskFileTitle(filePath, newTitle string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", filePath, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	inFrontmatter := false
+	pastFrontmatter := false
+	for i, line := range lines {
+		if !pastFrontmatter {
+			if strings.TrimSpace(line) == "---" {
+				if !inFrontmatter {
+					inFrontmatter = true
+				} else {
+					pastFrontmatter = true
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "# ") {
+			lines[i] = "# " + newTitle
+			return os.WriteFile(filePath, []byte(strings.Join(lines, "\n")), 0o644)
+		}
+	}
+	return nil
+}
+
+// UpdateTaskFileBody replaces the body content (below the # Title heading) in a task file.
+func UpdateTaskFileBody(filePath, body string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", filePath, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	inFrontmatter := false
+	pastFrontmatter := false
+	titleIdx := -1
+	for i, line := range lines {
+		if !pastFrontmatter {
+			if strings.TrimSpace(line) == "---" {
+				if !inFrontmatter {
+					inFrontmatter = true
+				} else {
+					pastFrontmatter = true
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "# ") {
+			titleIdx = i
+			break
+		}
+	}
+
+	if titleIdx < 0 {
+		return nil
+	}
+
+	// Keep everything up to and including the title line
+	newLines := append(lines[:titleIdx+1], "")
+	if body != "" {
+		newLines = append(newLines, body)
+	}
+
+	return os.WriteFile(filePath, []byte(strings.Join(newLines, "\n")), 0o644)
 }
