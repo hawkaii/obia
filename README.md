@@ -1,7 +1,7 @@
 # Obia
 
 <p>
-    <img src="https://img.shields.io/badge/go-%3E%3D1.22-blue?logo=go" alt="Go Version">
+    <img src="https://img.shields.io/badge/go-%3E%3D1.24-blue?logo=go" alt="Go Version">
     <a href="https://github.com/hawkaii/obia/actions"><img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status"></a>
     <a href="https://github.com/hawkaii/obia/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
 </p>
