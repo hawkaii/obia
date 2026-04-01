@@ -304,13 +304,13 @@ Point `vault.path` in your config at any markdown directory and Obia will scan i
 
 If you find Obia useful, consider supporting the project:
 
-<iframe src="https://github.com/sponsors/hawkaii/card" title="Sponsor hawkaii" height="225" width="600" style="border: 0;"></iframe>
+[![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-ea4aaa?logo=github)](https://github.com/sponsors/hawkaii)
 
 ## Discord
 
 Have questions or want to chat? Join the community:
 
-[Discord](https://discord.gg/5YfG9nS74h)
+[![Discord](https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/5YfG9nS74h)
 
 ## License
 
