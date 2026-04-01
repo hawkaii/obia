@@ -94,6 +94,38 @@ That's it. You'll see all your open tasks across the vault.
 
 ---
 
+## iOS Sync via iCloud (Reminders)
+
+If you want tasks pushed from Obia to appear in the **Reminders** app on your iPhone, point Obia at iCloud's CalDAV server — no third-party server needed.
+
+### 1. Generate an app-specific password
+
+1. Go to [appleid.apple.com](https://appleid.apple.com) and sign in
+2. Under **Sign-In and Security**, choose **App-Specific Passwords → Generate**
+3. Name it something like `obia` and copy the generated password (`xxxx-xxxx-xxxx-xxxx`)
+
+### 2. Add CalDAV config
+
+```toml
+[caldav]
+url      = "https://caldav.icloud.com"
+username = "your@icloud.com"
+password = "xxxx-xxxx-xxxx-xxxx"   # app-specific password, NOT your Apple ID password
+```
+
+### 3. Sync
+
+| Action | How |
+|--------|-----|
+| Push a task to Reminders | Press <kbd>p</kbd> on any task, fill the form, submit |
+| Push on add | Set `auto_push = true` in config, or toggle **Push?** in the add form |
+| Pull tasks from Reminders | Press <kbd>R</kbd> — new remote tasks land in your inbox file |
+| Toggle done syncs too | Checking/unchecking a linked task updates Reminders automatically |
+
+Tasks appear in the default **Reminders** list on iOS. They will **not** appear in the Calendar app — Reminders is Apple's CalDAV task store.
+
+---
+
 ## Keybindings
 
 | Key | Action |
