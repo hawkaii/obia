@@ -28,6 +28,7 @@ type CalDAV struct {
 
 type UI struct {
 	DefaultTab string `toml:"default_tab"`
+	Grouped    bool   `toml:"grouped"`
 }
 
 type Config struct {

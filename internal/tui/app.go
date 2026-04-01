@@ -66,6 +66,14 @@ func NewApp(cfg config.Config) App {
 		tasksection.New("CalDAV", vp, df, dfmt, tasksection.FilterCalDAV),
 	}
 
+	if cfg.UI.Grouped {
+		for _, s := range sections {
+			if ts, ok := s.(*tasksection.Model); ok {
+				ts.SetGrouped(true)
+			}
+		}
+	}
+
 	return App{
 		ctx:      ctx,
 		keys:     keys.DefaultKeyMap,
@@ -278,6 +286,8 @@ func (a App) handleBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.ToggleView):
 		if ts, ok := a.activeSection().(*tasksection.Model); ok {
 			ts.ToggleGrouped()
+			a.ctx.Config.UI.Grouped = ts.IsGrouped()
+			_ = config.Save(a.ctx.Config)
 		}
 
 	case key.Matches(msg, a.keys.EditTask):

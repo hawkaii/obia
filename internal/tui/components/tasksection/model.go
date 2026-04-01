@@ -61,6 +61,10 @@ func (m *Model) IsGrouped() bool {
 	return m.grouped
 }
 
+func (m *Model) SetGrouped(v bool) {
+	m.grouped = v
+}
+
 func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 	return m, nil
 }
