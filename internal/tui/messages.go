@@ -38,6 +38,15 @@ type PullCalDAVMsg struct {
 	Err      error
 }
 
+// TaskEditedMsg is sent after an edit is saved to disk.
+type TaskEditedMsg struct {
+	Task       *task.Task
+	NewSummary string
+	Reload     bool  // true when a plain task was upgraded to a linked task
+	Err        error
+	CalDAVErr  error // non-nil if save succeeded but CalDAV push failed
+}
+
 // ErrorMsg represents a generic error.
 type ErrorMsg struct {
 	Err error

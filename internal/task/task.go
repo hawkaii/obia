@@ -33,6 +33,9 @@ type Task struct {
 	Source         Source
 	CalDAVUID      string
 	LinkedTaskFile string // absolute path to tasks/<uid>.md; empty for plain tasks
+	Priority       int    // 0=none, 1-9 per RFC 5545 (linked tasks only)
+	CalDAVStatus   string // "NEEDS-ACTION", "IN-PROCESS", etc (linked tasks only)
+	Body           string // description body from task file (linked tasks only)
 }
 
 func (t *Task) Toggle() {

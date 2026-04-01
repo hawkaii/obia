@@ -225,19 +225,25 @@ func FilterOpen(tasks []task.Task, _, _ string) []task.Task {
 	return out
 }
 
-func FilterToday(tasks []task.Task, dailyFolder, dailyFormat string) []task.Task {
-	today := time.Now()
-	todayStr := today.Format(dailyFormat)
+func FilterWeekly(tasks []task.Task, dailyFolder, dailyFormat string) []task.Task {
+	now := time.Now()
+	weekStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	weekEnd := weekStart.AddDate(0, 0, 7)
 	var out []task.Task
 	for i := range tasks {
 		t := &tasks[i]
-		if strings.Contains(t.Source.FilePath, dailyFolder+"/"+todayStr) {
-			out = append(out, *t)
-			continue
+		// Include daily notes from any day this week
+		for d := 0; d < 7; d++ {
+			day := weekStart.AddDate(0, 0, d)
+			if strings.Contains(t.Source.FilePath, dailyFolder+"/"+day.Format(dailyFormat)) {
+				out = append(out, *t)
+				goto next
+			}
 		}
-		if t.Due != nil && sameDay(*t.Due, today) {
+		if t.Due != nil && !t.Due.Before(weekStart) && t.Due.Before(weekEnd) {
 			out = append(out, *t)
 		}
+	next:
 	}
 	return out
 }

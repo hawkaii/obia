@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -205,5 +206,86 @@ func PushCalDAVCmd(cfg config.CalDAV, t *task.Task) tea.Cmd {
 	return func() tea.Msg {
 		uid, err := caldav.PushTask(cfg, t, nil, 0, "", "")
 		return CalDAVPushedMsg{Task: t, UID: uid, Err: err}
+	}
+}
+
+// EditTaskCmd saves edits to a task.
+//
+// Plain task, no metadata → rewrite description in-place.
+// Plain task, metadata set → upgrade to linked task (creates task file + wikilink).
+// Linked task → update task file frontmatter, title, body; push to CalDAV if UID set.
+func EditTaskCmd(
+	t *task.Task,
+	newSummary, body string,
+	due *time.Time,
+	priority int,
+	status string,
+	push bool,
+	cfg config.Config,
+) tea.Cmd {
+	return func() tea.Msg {
+		hasMetadata := due != nil || priority > 0 || status != "" || body != ""
+
+		// Plain task with no metadata change → simple description rewrite
+		if t.LinkedTaskFile == "" && !hasMetadata {
+			if newSummary != t.Description {
+				if err := vault.UpdatePlainTaskDescription(t.Source.FilePath, t.Source.Line, newSummary); err != nil {
+					return TaskEditedMsg{Task: t, Err: err}
+				}
+			}
+			return TaskEditedMsg{Task: t, NewSummary: newSummary}
+		}
+
+		// Plain task with metadata → upgrade to linked task
+		if t.LinkedTaskFile == "" {
+			taskFilesDir, _ := vault.EnsureTaskFolder(cfg.Vault.Path, cfg.Vault.TaskFilesFolder)
+			uid := uuid.New().String()
+			var caldavErr error
+
+			if push && cfg.CalDAV.URL != "" {
+				pushTask := &task.Task{Description: newSummary, CalDAVUID: uid}
+				uid2, err := caldav.PushTask(cfg.CalDAV, pushTask, due, priority, status, body)
+				if err != nil {
+					caldavErr = err
+				} else {
+					uid = uid2
+				}
+			}
+
+			if err := vault.CreateTaskFile(taskFilesDir, uid, newSummary, body, due, priority, status); err != nil {
+				return TaskEditedMsg{Task: t, Err: err}
+			}
+			if err := vault.RewriteTaskLine(t.Source.FilePath, t.Source.Line, uid, newSummary); err != nil {
+				return TaskEditedMsg{Task: t, Err: err}
+			}
+
+			return TaskEditedMsg{Task: t, NewSummary: newSummary, Reload: true, CalDAVErr: caldavErr}
+		}
+
+		// Linked task → update task file in one pass
+		if err := vault.UpdateTaskFileContent(t.LinkedTaskFile, newSummary, body, due, status, priority); err != nil {
+			return TaskEditedMsg{Task: t, Err: err}
+		}
+		if newSummary != t.Description {
+			uid := filepath.Base(strings.TrimSuffix(t.LinkedTaskFile, ".md"))
+			if err := vault.RewriteTaskLine(t.Source.FilePath, t.Source.Line, uid, newSummary); err != nil {
+				return TaskEditedMsg{Task: t, Err: err}
+			}
+		}
+
+		// Push if already synced to CalDAV (auto-push, no toggle needed)
+		var caldavErr error
+		if t.CalDAVUID != "" && cfg.CalDAV.URL != "" {
+			_, caldavErr = caldav.PushTask(cfg.CalDAV, t, due, priority, status, body)
+		} else if push && cfg.CalDAV.URL != "" {
+			uid, err := caldav.PushTask(cfg.CalDAV, t, due, priority, status, body)
+			if err != nil {
+				caldavErr = err
+			} else {
+				_ = vault.WriteFrontmatterUID(t.LinkedTaskFile, uid)
+			}
+		}
+
+		return TaskEditedMsg{Task: t, NewSummary: newSummary, Reload: true, CalDAVErr: caldavErr}
 	}
 }
