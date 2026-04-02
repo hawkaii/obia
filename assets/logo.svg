@@ -8,7 +8,7 @@
 	font-weight: normal;
 	font-style: normal;
 }
-</style><rect width="260.00" height="125.71" fill="#171717" x="0.00px" y="0.00px"/>
+</style><rect width="260.00" height="125.71" fill="#d75fd7" rx="8.00" ry="8.00" x="0.00px" y="0.00px"/>
 <g font-family="JetBrains Mono" font-size="24.00px" fill="#c4c4c4" clip-path="url(#terminalMask)">
 <text x="30.00px" y="44.00px" xml:space="preserve"><tspan xml:space="preserve" fill="#7c3aed">█▀█ █▄▄ █ ▄▀█</tspan></text><text x="30.00px" y="68.00px" xml:space="preserve"><tspan xml:space="preserve" fill="#7c3aed">█▄█ █▄█ █ █▀█</tspan><tspan xml:space="preserve"/></text>
 </g>
