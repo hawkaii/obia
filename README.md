@@ -1,8 +1,6 @@
 # Obia
 
-<p align="center">
-  <img src="./assets/logo.png" width="300" alt="Obia" />
-</p>
+<img src="./assets/logo.png" width="300" alt="Obia" />
 
 <p>
     <img src="https://img.shields.io/badge/go-%3E%3D1.24-blue?logo=go" alt="Go Version">
