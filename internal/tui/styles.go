@@ -12,8 +12,7 @@ var (
 			Bold(true)
 
 	logoSubtitleStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("241")).
-				PaddingLeft(1)
+				Foreground(lipgloss.Color("#7C3AED"))
 
 
 	activeTabStyle = lipgloss.NewStyle().

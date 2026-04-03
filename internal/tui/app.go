@@ -12,11 +12,11 @@ import (
 	"github.com/hawkaii/obia/internal/task"
 	"github.com/hawkaii/obia/internal/tui/components/addform"
 	"github.com/hawkaii/obia/internal/tui/components/editform"
-	"github.com/hawkaii/obia/internal/vault"
-	appctx "github.com/hawkaii/obia/internal/tui/context"
-	"github.com/hawkaii/obia/internal/tui/keys"
 	"github.com/hawkaii/obia/internal/tui/components/section"
 	"github.com/hawkaii/obia/internal/tui/components/tasksection"
+	appctx "github.com/hawkaii/obia/internal/tui/context"
+	"github.com/hawkaii/obia/internal/tui/keys"
+	"github.com/hawkaii/obia/internal/vault"
 )
 
 type appMode int
@@ -473,24 +473,32 @@ func (a App) View() string {
 
 	var b strings.Builder
 
-	logoBlock := lipgloss.NewStyle().Padding(0, 2).Height(2).Render(
-		lipgloss.JoinHorizontal(lipgloss.Bottom,
-			logoStyle.Render(logo),
-			" ",
-			lipgloss.PlaceVertical(2, lipgloss.Bottom, logoSubtitleStyle.Render("manage tasks like a god")),
-		),
+	subtitle := "manage tasks like a god"
+	innerW := lipgloss.Width(logo)
+	if lipgloss.Width(subtitle) > innerW {
+		innerW = lipgloss.Width(subtitle)
+	}
+
+	logoInner := lipgloss.JoinVertical(lipgloss.Left,
+		logoStyle.Width(innerW). /*.Background(lipgloss.Color("170")).*/ Render(logo),
+		logoSubtitleStyle.Width(innerW). /*.Background(lipgloss.Color("170")).*/ Render(subtitle),
 	)
+	logoBlock := lipgloss.NewStyle().
+		// Background(lipgloss.Color("170")).
+		Padding(1, 6, 1, 2).
+		Render(logoInner)
+	headerHeight := lipgloss.Height(logoBlock)
 	tabsBlock := lipgloss.NewStyle().
-		Width(w-lipgloss.Width(logoBlock)).
-		Height(2).
+		Width(w - lipgloss.Width(logoBlock)).
+		Height(headerHeight).
 		AlignVertical(lipgloss.Bottom).
 		Render(a.renderTabs())
-	b.WriteString(tabBarStyle.Width(w).Height(2).Render(
+	b.WriteString(tabBarStyle.Width(w).Height(headerHeight).Render(
 		lipgloss.JoinHorizontal(lipgloss.Bottom, tabsBlock, logoBlock),
 	))
 	b.WriteString("\n")
 
-	listHeight := a.ctx.Height - 7
+	listHeight := a.ctx.Height - headerHeight - 5
 	if listHeight < 1 {
 		listHeight = 10
 	}
