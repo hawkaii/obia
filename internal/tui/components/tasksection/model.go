@@ -231,7 +231,8 @@ func FilterOpen(tasks []task.Task, _, _ string) []task.Task {
 
 func FilterWeekly(tasks []task.Task, dailyFolder, dailyFormat string) []task.Task {
 	now := time.Now()
-	weekStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	daysBackToSunday := int(now.Weekday()) // 0=Sun, 1=Mon, …, 6=Sat
+	weekStart := time.Date(now.Year(), now.Month(), now.Day()-daysBackToSunday, 0, 0, 0, 0, now.Location())
 	weekEnd := weekStart.AddDate(0, 0, 7)
 	var out []task.Task
 	for i := range tasks {

@@ -491,7 +491,7 @@ func (a App) View() string {
 	tabsBlock := lipgloss.NewStyle().
 		Width(w - lipgloss.Width(logoBlock)).
 		Height(headerHeight).
-		AlignVertical(lipgloss.Bottom).
+		AlignVertical(lipgloss.Center).
 		Render(a.renderTabs())
 	b.WriteString(tabBarStyle.Width(w).Height(headerHeight).Render(
 		lipgloss.JoinHorizontal(lipgloss.Bottom, tabsBlock, logoBlock),
@@ -538,10 +538,10 @@ func (a App) renderTabs() string {
 		count := s.NumRows()
 		label := fmt.Sprintf("%s(%d)", name, count)
 		if i == a.activeTab {
-			tabs = append(tabs, activeTabStyle.Render("["+label+"]"))
+			tabs = append(tabs, activeTabStyle.Render(label))
 		} else {
-			tabs = append(tabs, inactiveTabStyle.Render(" "+label+" "))
+			tabs = append(tabs, inactiveTabStyle.Render(label))
 		}
 	}
-	return strings.Join(tabs, "")
+	return lipgloss.JoinHorizontal(lipgloss.Top, tabs...)
 }

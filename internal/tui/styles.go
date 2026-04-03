@@ -17,18 +17,23 @@ var (
 
 	activeTabStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("170")).
-			Padding(0, 2)
+			Foreground(lipgloss.Color("#ffffff")).
+			Background(lipgloss.Color("#7C3AED")).
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("#7C3AED")).
+			BorderBackground(lipgloss.Color("#7C3AED")).
+			Padding(0, 1)
 
 	inactiveTabStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("245")).
-				Padding(0, 2)
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(lipgloss.Color("#7C3AED")).
+				Padding(0, 1)
 
 	tabBarStyle = lipgloss.NewStyle().
 			BorderBottom(true).
 			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("238")).
-			MarginBottom(1)
+			BorderForeground(lipgloss.Color("238"))
 
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
