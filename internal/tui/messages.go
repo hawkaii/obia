@@ -2,8 +2,14 @@ package tui
 
 import "github.com/hawkaii/obia/internal/task"
 
-// TasksLoadedMsg is sent when vault parsing completes.
+// TasksLoadedMsg is sent when the task cache is loaded instantly on startup.
 type TasksLoadedMsg struct {
+	Tasks []task.Task
+	Err   error
+}
+
+// TasksRefreshedMsg is sent when the background vault scan completes.
+type TasksRefreshedMsg struct {
 	Tasks []task.Task
 	Err   error
 }
