@@ -10,7 +10,8 @@ import (
 
 type Vault struct {
 	Path             string   `toml:"path"`
-	DailyNotesFolder string   `toml:"daily_notes_folder"`
+	DailyNotesFolder string   `toml:"daily_notes_folder"` // kept for backward compat
+	Folders          []string `toml:"folders"`             // generic folder list; takes precedence over daily_notes_folder
 	DailyNotesFormat string   `toml:"daily_notes_format"`
 	DefaultTaskFile  string   `toml:"default_task_file"`
 	AddTaskTarget    string   `toml:"add_task_target"`   // "daily" | "default" | vault-relative path

@@ -13,14 +13,14 @@ import (
 )
 
 // FilterFunc decides which tasks belong in this section.
-type FilterFunc func(tasks []task.Task, dailyFolder, dailyFormat string) []task.Task
+type FilterFunc func(tasks []task.Task, folders []string, dailyFormat string) []task.Task
 
 // Model implements section.Section for a filtered task list view.
 type Model struct {
 	title       string
 	filterFn    FilterFunc
 	vaultPath   string
-	dailyFolder string
+	folders     []string
 	dailyFormat string
 	filtered    []task.Task
 	search      string
@@ -29,12 +29,12 @@ type Model struct {
 
 var _ section.Section = (*Model)(nil)
 
-func New(title, vaultPath, dailyFolder, dailyFormat string, filterFn FilterFunc) *Model {
+func New(title, vaultPath string, folders []string, dailyFormat string, filterFn FilterFunc) *Model {
 	return &Model{
 		title:       title,
 		filterFn:    filterFn,
 		vaultPath:   vaultPath,
-		dailyFolder: dailyFolder,
+		folders:     folders,
 		dailyFormat: dailyFormat,
 	}
 }
@@ -42,7 +42,7 @@ func New(title, vaultPath, dailyFolder, dailyFormat string, filterFn FilterFunc)
 func (m *Model) Title() string { return m.title }
 
 func (m *Model) SetTasks(all []task.Task) {
-	m.filtered = m.filterFn(all, m.dailyFolder, m.dailyFormat)
+	m.filtered = m.filterFn(all, m.folders, m.dailyFormat)
 	m.applySearch()
 }
 
@@ -99,6 +99,8 @@ func (m *Model) viewFlat(width, height, cursor int, selected bool) string {
 		if t.IsDone() {
 			checkbox = "[x]"
 			style = taskDoneStyle
+		} else if t.CalDAVUID != "" {
+			style = taskCalDAVStyle
 		}
 
 		relPath := t.RelativePath(m.vaultPath)
@@ -147,6 +149,8 @@ func (m *Model) viewGrouped(width, height, cursor int, selected bool) string {
 		if t.IsDone() {
 			checkbox = "[x]"
 			style = taskDoneStyle
+		} else if t.CalDAVUID != "" {
+			style = taskCalDAVStyle
 		}
 
 		row := style.Render(fmt.Sprintf("    %s %s", checkbox, t.Description))
@@ -212,6 +216,7 @@ func (t taskSource) Len() int            { return len(t) }
 var (
 	taskTodoStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	taskDoneStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Strikethrough(true)
+	taskCalDAVStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#00C48C"))
 	selectedStyle   = lipgloss.NewStyle().Background(lipgloss.Color("236")).Bold(true)
 	sourceStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	fileHeaderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true)
@@ -219,7 +224,7 @@ var (
 
 // --- Built-in filter functions ---
 
-func FilterOpen(tasks []task.Task, _, _ string) []task.Task {
+func FilterOpen(tasks []task.Task, _ []string, _ string) []task.Task {
 	var out []task.Task
 	for i := range tasks {
 		if !tasks[i].IsDone() {
@@ -229,31 +234,53 @@ func FilterOpen(tasks []task.Task, _, _ string) []task.Task {
 	return out
 }
 
-func FilterWeekly(tasks []task.Task, dailyFolder, dailyFormat string) []task.Task {
+func FilterWeekly(tasks []task.Task, folders []string, dailyFormat string) []task.Task {
 	now := time.Now()
 	daysBackToSunday := int(now.Weekday()) // 0=Sun, 1=Mon, …, 6=Sat
 	weekStart := time.Date(now.Year(), now.Month(), now.Day()-daysBackToSunday, 0, 0, 0, 0, now.Location())
 	weekEnd := weekStart.AddDate(0, 0, 7)
+	days := make([]string, 7)
+	for d := 0; d < 7; d++ {
+		days[d] = weekStart.AddDate(0, 0, d).Format(dailyFormat)
+	}
 	var out []task.Task
+outer:
 	for i := range tasks {
 		t := &tasks[i]
-		// Include daily notes from any day this week
-		for d := 0; d < 7; d++ {
-			day := weekStart.AddDate(0, 0, d)
-			if strings.Contains(t.Source.FilePath, dailyFolder+"/"+day.Format(dailyFormat)) {
-				out = append(out, *t)
-				goto next
+		for _, folder := range folders {
+			for d := 0; d < 7; d++ {
+				if strings.Contains(t.Source.FilePath, "/"+folder+"/"+days[d]) {
+					if !t.IsDone() {
+						out = append(out, *t)
+					}
+					continue outer
+				}
 			}
 		}
-		if t.Due != nil && !t.Due.Before(weekStart) && t.Due.Before(weekEnd) {
+		if t.Due != nil && !t.Due.Before(weekStart) && t.Due.Before(weekEnd) && !t.IsDone() {
 			out = append(out, *t)
 		}
-	next:
 	}
 	return out
 }
 
-func FilterOverdue(tasks []task.Task, _, _ string) []task.Task {
+func FilterDailyFolders(tasks []task.Task, folders []string, _ string) []task.Task {
+	var out []task.Task
+	for i := range tasks {
+		t := &tasks[i]
+		for _, folder := range folders {
+			if strings.Contains(t.Source.FilePath, "/"+folder+"/") {
+				if !t.IsDone() {
+					out = append(out, *t)
+				}
+				break
+			}
+		}
+	}
+	return out
+}
+
+func FilterOverdue(tasks []task.Task, _ []string, _ string) []task.Task {
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	var out []task.Task
@@ -266,7 +293,7 @@ func FilterOverdue(tasks []task.Task, _, _ string) []task.Task {
 	return out
 }
 
-func FilterCalDAV(tasks []task.Task, _, _ string) []task.Task {
+func FilterCalDAV(tasks []task.Task, _ []string, _ string) []task.Task {
 	var out []task.Task
 	for i := range tasks {
 		if tasks[i].CalDAVUID != "" {

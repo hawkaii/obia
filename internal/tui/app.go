@@ -60,14 +60,18 @@ func NewApp(cfg config.Config) App {
 	ctx := appctx.New(cfg)
 
 	vp := cfg.Vault.Path
-	df := cfg.Vault.DailyNotesFolder
 	dfmt := cfg.Vault.DailyNotesFormat
+	dfs := cfg.Vault.Folders
+	if len(dfs) == 0 && cfg.Vault.DailyNotesFolder != "" {
+		dfs = []string{cfg.Vault.DailyNotesFolder}
+	}
 
 	sections := []section.Section{
-		tasksection.New("Tasks", vp, df, dfmt, tasksection.FilterOpen),
-		tasksection.New("Weekly", vp, df, dfmt, tasksection.FilterWeekly),
-		tasksection.New("Overdue", vp, df, dfmt, tasksection.FilterOverdue),
-		tasksection.New("CalDAV", vp, df, dfmt, tasksection.FilterCalDAV),
+		tasksection.New("Tasks",   vp, dfs, dfmt, tasksection.FilterOpen),
+		tasksection.New("Daily",   vp, dfs, dfmt, tasksection.FilterDailyFolders),
+		tasksection.New("Weekly",  vp, dfs, dfmt, tasksection.FilterWeekly),
+		tasksection.New("Overdue", vp, dfs, dfmt, tasksection.FilterOverdue),
+		tasksection.New("CalDAV",  vp, dfs, dfmt, tasksection.FilterCalDAV),
 	}
 
 	if cfg.UI.Grouped {
