@@ -23,7 +23,7 @@ Obia scans every `.md` file in your [Obsidian](https://obsidian.md) vault, pulls
 ## Features
 
 - **All your tasks, one place** — Parses `- [ ]` / `- [x]` from every markdown file in your vault
-- **Tabbed views** — Tasks, Daily, Weekly (Sun–Sat), Overdue, CalDAV — switch with <kbd>Tab</kbd>
+- **Tabbed views** — Fully configurable tabs (defaults: Tasks, Overdue, CalDAV) — switch with <kbd>Tab</kbd>
 - **Vim-style navigation** — <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>g</kbd>/<kbd>G</kbd> for top/bottom
 - **Toggle done** — Hit <kbd>Enter</kbd> to check/uncheck, writes back to the `.md` file instantly
 - **Open in editor** — Press <kbd>Ctrl+G</kbd> to open the task's source file in `$EDITOR` at the exact line
@@ -87,6 +87,31 @@ url = ""
 username = ""
 password = ""
 auto_push = false               # push new tasks to CalDAV automatically on add
+
+# Tab configuration (optional — defaults to Tasks, Overdue, CalDAV if omitted)
+[[ui.tabs]]
+name = "Tasks"
+filter = "open"
+
+[[ui.tabs]]
+name = "Overdue"
+filter = "overdue"
+
+[[ui.tabs]]
+name = "CalDAV"
+filter = "caldav"
+
+[[ui.tabs]]
+name = "Daily"
+filter = "folder"
+folders = ["diary"]
+
+[[ui.tabs]]
+name = "Weekly"
+filter = "timewindow"
+window = "week"
+folders = ["diary"]
+# week_start = "monday"   # optional; default is "sunday"
 ```
 
 ### 2. Run it
@@ -155,20 +180,90 @@ Tasks appear in the default **Reminders** list on iOS. They will **not** appear 
 
 ## Tabs
 
-- **Tasks** — All open tasks across your vault
-- **Daily** — All pending tasks from your configured daily-note folders (no date limit)
-- **Weekly** — Pending tasks from the current calendar week (Sun–Sat), including tasks due this week
-- **Overdue** — Tasks past their due date
-- **CalDAV** — Tasks synced with your CalDAV server
+Tabs are fully configurable in your `config.toml` under `[[ui.tabs]]`. When no tabs are configured, three defaults are injected: **Tasks**, **Overdue**, **CalDAV**.
 
-The Daily and Weekly tabs use the `folders` config key. Set it to scan multiple folders:
+### Filter types
+
+| Filter | Description |
+|--------|------------|
+| `open` | All open tasks |
+| `overdue` | Tasks past their due date |
+| `caldav` | Tasks synced with CalDAV server |
+| `folder` | Tasks from specific folders (`folders` required) |
+| `timewindow` | Calendar-aligned window: `week` or `month` |
+| `rolling` | N days forward from today (`days` required) |
+| `file` | Tasks from a specific file (`file` required) |
+| `tag` | Tasks with a specific tag (`tag` required) |
+| `wikilink` | Tasks linking to a specific page (`wikilink` required) |
+
+### Config example
 
 ```toml
-[vault]
-folders = ["diary", "journal"]   # shown in Daily + Weekly tabs
+[[ui.tabs]]
+name = "Tasks"
+filter = "open"
+
+[[ui.tabs]]
+name = "Overdue"
+filter = "overdue"
+
+[[ui.tabs]]
+name = "CalDAV"
+filter = "caldav"
+show_done = true    # include completed CalDAV tasks
+
+[[ui.tabs]]
+name = "Diary"
+filter = "folder"
+folders = ["diary"]
+
+[[ui.tabs]]
+name = "Weekly"
+filter = "timewindow"
+window = "week"
+folders = ["diary"]
+
+[[ui.tabs]]
+name = "This Month"
+filter = "timewindow"
+window = "month"
+folders = ["diary"]
+
+[[ui.tabs]]
+name = "Next 14 Days"
+filter = "rolling"
+days = 14
+folders = ["diary"]
+
+[[ui.tabs]]
+name = "DSA"
+filter = "file"
+file = "dsa.md"
+
+[[ui.tabs]]
+name = "Urgent"
+filter = "tag"
+tag = "urgent"
 ```
 
-If `folders` is not set, it falls back to `daily_notes_folder`.
+### Time window options
+
+For `filter = "timewindow"`:
+
+- `window = "week"` — current calendar week (aligned to `week_start`): `sunday` (default) or `monday`
+- `window = "month"` — current calendar month
+
+### Rolling options
+
+For `filter = "rolling"`:
+
+- `days = 14` — N days forward from today
+
+Both `timewindow` and `rolling` match against task **due dates** AND **folder filenames** (e.g., `diary/2026-04-25.md`). If `folders` is not set, filename-date matching is disabled and a warning appears in the tab.
+
+### Show done tasks
+
+By default, done tasks are hidden. Set `show_done = true` on any tab to include completed tasks.
 
 ---
 
