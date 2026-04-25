@@ -210,6 +210,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.message = "Pushed to CalDAV: " + msg.Task.Description
 		}
 
+	case EditorClosedMsg:
+		if msg.Err != nil {
+			a.message = "Editor error: " + msg.Err.Error()
+		}
+		a.loading = true
+		return a, tea.Batch(
+			LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath),
+			a.spinner.Tick,
+		)
+
 	case spinner.TickMsg:
 		if a.loading {
 			var cmd tea.Cmd
@@ -347,6 +357,13 @@ func (a App) handleBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.editFormTask = t
 		a.mode = modeEditForm
 		return a, nil
+
+	case key.Matches(msg, a.keys.OpenInEditor):
+		tasks := a.activeSection().Tasks()
+		if a.cursor < len(tasks) {
+			t := &tasks[a.cursor]
+			return a, OpenInEditorCmd(t.Source.FilePath, t.Source.Line)
+		}
 
 	case key.Matches(msg, a.keys.Reload):
 		a.loading = true

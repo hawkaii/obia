@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,6 +22,27 @@ func LoadCacheCmd(cachePath string) tea.Cmd {
 		tasks, err := vault.LoadCache(cachePath)
 		return TasksLoadedMsg{Tasks: tasks, Err: err}
 	}
+}
+
+// OpenInEditorCmd suspends the TUI and opens filePath in $EDITOR at the given line.
+// vim/nvim/vi get a +N flag to jump directly to the line.
+func OpenInEditorCmd(filePath string, line int) tea.Cmd {
+	editorEnv := os.Getenv("EDITOR")
+	if editorEnv == "" {
+		editorEnv = "vim"
+	}
+	parts := strings.Fields(editorEnv)
+	editor := parts[0]
+	editorArgs := parts[1:]
+	args := []string{filePath}
+	base := filepath.Base(editor)
+	if base == "vim" || base == "nvim" || base == "vi" {
+		args = []string{fmt.Sprintf("+%d", line), filePath}
+	}
+	c := exec.Command(editor, append(editorArgs, args...)...)
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		return EditorClosedMsg{Err: err}
+	})
 }
 
 // LoadTasksCmd scans the vault, saves the result to cache, and returns a refresh message.
