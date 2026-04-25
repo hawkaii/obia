@@ -42,7 +42,6 @@ func DefaultConfig() Config {
 	return Config{
 		Vault: Vault{
 			DailyNotesFolder: "diary",
-			Folders:          []string{"diary"},
 			DailyNotesFormat: "2006-01-02",
 			DefaultTaskFile:  "todo.md",
 			AddTaskTarget:    "daily",
