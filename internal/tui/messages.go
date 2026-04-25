@@ -53,6 +53,9 @@ type TaskEditedMsg struct {
 	CalDAVErr  error // non-nil if save succeeded but CalDAV push failed
 }
 
+// EditorClosedMsg is sent when the external editor process exits.
+type EditorClosedMsg struct{ Err error }
+
 // ErrorMsg represents a generic error.
 type ErrorMsg struct {
 	Err error

@@ -15,9 +15,10 @@ type KeyMap struct {
 	AddTask    key.Binding
 	Reload     key.Binding
 	Pull       key.Binding
-	EditTask   key.Binding
-	ToggleView key.Binding
-	Quit       key.Binding
+	EditTask     key.Binding
+	OpenInEditor key.Binding
+	ToggleView   key.Binding
+	Quit         key.Binding
 	Escape     key.Binding
 	Backspace  key.Binding
 	Enter      key.Binding
@@ -76,6 +77,10 @@ var DefaultKeyMap = KeyMap{
 		key.WithKeys("e"),
 		key.WithHelp("e", "edit"),
 	),
+	OpenInEditor: key.NewBinding(
+		key.WithKeys("ctrl+g"),
+		key.WithHelp("ctrl+g", "open in editor"),
+	),
 	ToggleView: key.NewBinding(
 		key.WithKeys("v"),
 		key.WithHelp("v", "view"),
@@ -98,5 +103,5 @@ var DefaultKeyMap = KeyMap{
 
 // BrowserHelp returns the help text for the browser mode status bar.
 func BrowserHelp() string {
-	return "  ↑/k ↓/j navigate  enter: toggle  a: add  e: edit  p: push  R: pull  /: filter  v: view  tab: switch  r: reload  q: quit"
+	return "  ↑/k ↓/j navigate  enter: toggle  a: add  e: edit  ctrl+g: open  p: push  R: pull  /: filter  v: view  tab: switch  r: reload  q: quit"
 }
