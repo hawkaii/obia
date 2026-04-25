@@ -23,9 +23,11 @@ Obia scans every `.md` file in your [Obsidian](https://obsidian.md) vault, pulls
 ## Features
 
 - **All your tasks, one place** — Parses `- [ ]` / `- [x]` from every markdown file in your vault
-- **Tabbed views** — Tasks, Today, Overdue, CalDAV — switch with <kbd>Tab</kbd>
+- **Tabbed views** — Tasks, Daily, Weekly (Sun–Sat), Overdue, CalDAV — switch with <kbd>Tab</kbd>
 - **Vim-style navigation** — <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>g</kbd>/<kbd>G</kbd> for top/bottom
 - **Toggle done** — Hit <kbd>Enter</kbd> to check/uncheck, writes back to the `.md` file instantly
+- **Open in editor** — Press <kbd>Ctrl+G</kbd> to open the task's source file in `$EDITOR` at the exact line
+- **Instant startup** — Task list appears immediately from cache; background scan refreshes silently
 - **Rich task add** — Press <kbd>a</kbd> to open a form: summary, target file (fuzzy picker), due date, time, description, priority, status, optional CalDAV push
 - **Edit tasks** — Press <kbd>e</kbd> to edit any task; plain tasks auto-upgrade to linked tasks when metadata is set
 - **Fuzzy search** — <kbd>/</kbd> to filter with fuzzy matching across all task descriptions
@@ -34,6 +36,7 @@ Obia scans every `.md` file in your [Obsidian](https://obsidian.md) vault, pulls
 - **CalDAV sync** — Push tasks to any CalDAV server with <kbd>p</kbd> (Radicale, Nextcloud, iCloud, Tasks.org, etc.)
 - **CalDAV pull** — Press <kbd>R</kbd> to pull all VTODOs from your CalDAV server; new remote tasks land in your inbox
 - **CalDAV auto-push** — Optionally push new tasks to CalDAV automatically on add
+- **Green CalDAV indicator** — Synced tasks render in green so they're visually distinct
 - **Wikilinks & tags** — Extracts `[[links]]` and `#tags` from task descriptions
 - **Fast** — Scans 800+ files in under a second
 
@@ -137,6 +140,7 @@ Tasks appear in the default **Reminders** list on iOS. They will **not** appear 
 | <kbd>g</kbd> / <kbd>G</kbd> | Jump to top / bottom |
 | <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> | Switch tabs |
 | <kbd>Enter</kbd> | Toggle task done/undone |
+| <kbd>Ctrl+G</kbd> | Open task's source file in `$EDITOR` at the exact line |
 | <kbd>a</kbd> | Add new task (opens rich form) |
 | <kbd>e</kbd> | Edit task (summary, due date/time, description, priority, status) |
 | <kbd>p</kbd> | Upgrade plain task to linked task (opens form pre-filled) |
@@ -152,9 +156,19 @@ Tasks appear in the default **Reminders** list on iOS. They will **not** appear 
 ## Tabs
 
 - **Tasks** — All open tasks across your vault
-- **Today** — Tasks due today
+- **Daily** — All pending tasks from your configured daily-note folders (no date limit)
+- **Weekly** — Pending tasks from the current calendar week (Sun–Sat), including tasks due this week
 - **Overdue** — Tasks past their due date
 - **CalDAV** — Tasks synced with your CalDAV server
+
+The Daily and Weekly tabs use the `folders` config key. Set it to scan multiple folders:
+
+```toml
+[vault]
+folders = ["diary", "journal"]   # shown in Daily + Weekly tabs
+```
+
+If `folders` is not set, it falls back to `daily_notes_folder`.
 
 ---
 
