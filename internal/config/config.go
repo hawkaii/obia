@@ -11,7 +11,7 @@ import (
 type Vault struct {
 	Path             string   `toml:"path"`
 	DailyNotesFolder string   `toml:"daily_notes_folder"` // kept for backward compat
-	Folders          []string `toml:"folders"`             // generic folder list; takes precedence over daily_notes_folder
+	Folders          []string `toml:"folders"`            // generic folder list; takes precedence over daily_notes_folder
 	DailyNotesFormat string   `toml:"daily_notes_format"`
 	DefaultTaskFile  string   `toml:"default_task_file"`
 	AddTaskTarget    string   `toml:"add_task_target"`   // "daily" | "default" | vault-relative path
@@ -27,9 +27,23 @@ type CalDAV struct {
 	AutoPush bool   `toml:"auto_push"`
 }
 
+type TabConfig struct {
+	Name      string   `toml:"name"`
+	Filter    string   `toml:"filter"`     // open|folder|file|timewindow|rolling|overdue|caldav|tag|wikilink
+	File      string   `toml:"file"`       // filter="file": vault-relative path
+	Folders   []string `toml:"folders"`    // folder-based filters: vault-relative folder names
+	Window    string   `toml:"window"`     // filter="timewindow": "week" | "month"
+	WeekStart string   `toml:"week_start"` // filter="timewindow" window="week": "sunday"(default)|"monday"
+	Days      int      `toml:"days"`       // filter="rolling": number of days forward from today
+	Tag       string   `toml:"tag"`        // filter="tag": hashtag to match (# prefix optional)
+	WikiLink  string   `toml:"wikilink"`   // filter="wikilink": exact inner text of [[...]]
+	ShowDone  bool     `toml:"show_done"`  // if true, include completed tasks (default false)
+}
+
 type UI struct {
-	DefaultTab string `toml:"default_tab"`
-	Grouped    bool   `toml:"grouped"`
+	DefaultTab string      `toml:"default_tab"`
+	Grouped    bool        `toml:"grouped"`
+	Tabs       []TabConfig `toml:"tabs"`
 }
 
 type Config struct {
@@ -50,6 +64,7 @@ func DefaultConfig() Config {
 		},
 		UI: UI{
 			DefaultTab: "tasks",
+			// Tabs intentionally empty - Load() injects defaults when absent.
 		},
 	}
 }
@@ -89,6 +104,13 @@ func Load() (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			if len(cfg.UI.Tabs) == 0 {
+				cfg.UI.Tabs = []TabConfig{
+					{Name: "Tasks", Filter: "open"},
+					{Name: "Overdue", Filter: "overdue"},
+					{Name: "CalDAV", Filter: "caldav"},
+				}
+			}
 			return cfg, nil
 		}
 		return cfg, fmt.Errorf("reading config: %w", err)
@@ -96,6 +118,14 @@ func Load() (Config, error) {
 
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return cfg, fmt.Errorf("parsing config: %w", err)
+	}
+
+	if len(cfg.UI.Tabs) == 0 {
+		cfg.UI.Tabs = []TabConfig{
+			{Name: "Tasks", Filter: "open"},
+			{Name: "Overdue", Filter: "overdue"},
+			{Name: "CalDAV", Filter: "caldav"},
+		}
 	}
 
 	return cfg, nil

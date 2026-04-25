@@ -43,10 +43,10 @@ type App struct {
 	input     string
 	message   string
 
-	allTasks  []task.Task
-	sections  []section.Section
-	activeTab int
-	cursor    int
+	allTasks       []task.Task
+	sections       []section.Section
+	activeTab      int
+	cursor         int
 	loading        bool
 	loadedFromScan bool
 	cachePath      string
@@ -68,13 +68,66 @@ func NewApp(cfg config.Config) App {
 	if len(dfs) == 0 && cfg.Vault.DailyNotesFolder != "" {
 		dfs = []string{cfg.Vault.DailyNotesFolder}
 	}
+	_ = dfs
 
-	sections := []section.Section{
-		tasksection.New("Tasks",   vp, dfs, dfmt, tasksection.FilterOpen),
-		tasksection.New("Daily",   vp, dfs, dfmt, tasksection.FilterDailyFolders),
-		tasksection.New("Weekly",  vp, dfs, dfmt, tasksection.FilterWeekly),
-		tasksection.New("Overdue", vp, dfs, dfmt, tasksection.FilterOverdue),
-		tasksection.New("CalDAV",  vp, dfs, dfmt, tasksection.FilterCalDAV),
+	var sections []section.Section
+	for _, tab := range cfg.UI.Tabs {
+		tabFolders := tab.Folders
+
+		var fn tasksection.FilterFunc
+		var warningParts []string
+
+		switch tab.Filter {
+		case "open":
+			fn = tasksection.FilterOpen
+		case "folder":
+			fn = tasksection.MakeFolderFilter(vp, tabFolders)
+		case "timewindow":
+			if len(tabFolders) == 0 {
+				warningParts = append(warningParts, "no folders set - filename-date matching disabled")
+			}
+			fn = tasksection.MakeTimeWindowFilter(vp, tabFolders, dfmt, tab.Window, tab.WeekStart)
+		case "rolling":
+			if tab.Days == 0 {
+				warningParts = append(warningParts, "days must be > 0")
+			}
+			if len(tabFolders) == 0 {
+				warningParts = append(warningParts, "no folders set - filename-date matching disabled")
+			}
+			fn = tasksection.MakeRollingFilter(vp, tabFolders, dfmt, tab.Days)
+		case "overdue":
+			fn = tasksection.FilterOverdue
+		case "caldav":
+			fn = tasksection.FilterCalDAV
+		case "file":
+			fn = tasksection.MakeFileFilter(vp, tab.File)
+		case "tag":
+			fn = tasksection.MakeTagFilter(tab.Tag)
+		case "wikilink":
+			fn = tasksection.MakeWikiLinkFilter(tab.WikiLink)
+		default:
+			fn = tasksection.FilterOpen
+		}
+
+		if !tab.ShowDone {
+			inner := fn
+			fn = func(tasks []task.Task) []task.Task {
+				all := inner(tasks)
+				out := make([]task.Task, 0, len(all))
+				for _, t := range all {
+					if !t.IsDone() {
+						out = append(out, t)
+					}
+				}
+				return out
+			}
+		}
+
+		s := tasksection.New(tab.Name, vp, fn)
+		if len(warningParts) > 0 {
+			s.SetWarning(strings.Join(warningParts, "; "))
+		}
+		sections = append(sections, s)
 	}
 
 	if cfg.UI.Grouped {
