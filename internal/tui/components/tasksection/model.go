@@ -99,6 +99,8 @@ func (m *Model) viewFlat(width, height, cursor int, selected bool) string {
 		if t.IsDone() {
 			checkbox = "[x]"
 			style = taskDoneStyle
+		} else if t.CalDAVUID != "" {
+			style = taskCalDAVStyle
 		}
 
 		relPath := t.RelativePath(m.vaultPath)
@@ -147,6 +149,8 @@ func (m *Model) viewGrouped(width, height, cursor int, selected bool) string {
 		if t.IsDone() {
 			checkbox = "[x]"
 			style = taskDoneStyle
+		} else if t.CalDAVUID != "" {
+			style = taskCalDAVStyle
 		}
 
 		row := style.Render(fmt.Sprintf("    %s %s", checkbox, t.Description))
@@ -212,6 +216,7 @@ func (t taskSource) Len() int            { return len(t) }
 var (
 	taskTodoStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	taskDoneStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Strikethrough(true)
+	taskCalDAVStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#00C48C"))
 	selectedStyle   = lipgloss.NewStyle().Background(lipgloss.Color("236")).Bold(true)
 	sourceStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	fileHeaderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true)
