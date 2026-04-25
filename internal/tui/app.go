@@ -62,7 +62,7 @@ func NewApp(cfg config.Config) App {
 	vp := cfg.Vault.Path
 	dfmt := cfg.Vault.DailyNotesFormat
 	dfs := cfg.Vault.Folders
-	if len(dfs) == 0 {
+	if len(dfs) == 0 && cfg.Vault.DailyNotesFolder != "" {
 		dfs = []string{cfg.Vault.DailyNotesFolder}
 	}
 

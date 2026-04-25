@@ -239,14 +239,17 @@ func FilterWeekly(tasks []task.Task, folders []string, dailyFormat string) []tas
 	daysBackToSunday := int(now.Weekday()) // 0=Sun, 1=Mon, …, 6=Sat
 	weekStart := time.Date(now.Year(), now.Month(), now.Day()-daysBackToSunday, 0, 0, 0, 0, now.Location())
 	weekEnd := weekStart.AddDate(0, 0, 7)
+	days := make([]string, 7)
+	for d := 0; d < 7; d++ {
+		days[d] = weekStart.AddDate(0, 0, d).Format(dailyFormat)
+	}
 	var out []task.Task
 outer:
 	for i := range tasks {
 		t := &tasks[i]
 		for _, folder := range folders {
 			for d := 0; d < 7; d++ {
-				day := weekStart.AddDate(0, 0, d)
-				if strings.Contains(t.Source.FilePath, folder+"/"+day.Format(dailyFormat)) {
+				if strings.Contains(t.Source.FilePath, "/"+folder+"/"+days[d]) {
 					if !t.IsDone() {
 						out = append(out, *t)
 					}
@@ -254,7 +257,7 @@ outer:
 				}
 			}
 		}
-		if t.Due != nil && !t.Due.Before(weekStart) && t.Due.Before(weekEnd) {
+		if t.Due != nil && !t.Due.Before(weekStart) && t.Due.Before(weekEnd) && !t.IsDone() {
 			out = append(out, *t)
 		}
 	}
