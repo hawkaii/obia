@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -47,6 +48,7 @@ type App struct {
 	activeTab int
 	cursor    int
 	loading   bool
+	cachePath string
 
 	spinner spinner.Model
 
@@ -82,19 +84,29 @@ func NewApp(cfg config.Config) App {
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED"))
 
+	cachePath, _ := config.CachePath()
+	hasCache := false
+	if cachePath != "" {
+		if _, err := os.Stat(cachePath); err == nil {
+			hasCache = true
+		}
+	}
+
 	return App{
-		ctx:      ctx,
-		keys:     keys.DefaultKeyMap,
-		mode:     modeBrowser,
-		sections: sections,
-		loading:  true,
-		spinner:  sp,
+		ctx:       ctx,
+		keys:      keys.DefaultKeyMap,
+		mode:      modeBrowser,
+		sections:  sections,
+		loading:   !hasCache,
+		cachePath: cachePath,
+		spinner:   sp,
 	}
 }
 
 func (a App) Init() tea.Cmd {
 	return tea.Batch(
-		LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder),
+		LoadCacheCmd(a.cachePath),
+		LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath),
 		a.spinner.Tick,
 	)
 }
@@ -105,9 +117,17 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.ctx.SetSize(msg.Width, msg.Height)
 
 	case TasksLoadedMsg:
-		if msg.Err != nil {
-			a.message = "Error loading tasks: " + msg.Err.Error()
-		} else {
+		// Cache hit — show tasks instantly; loading already false if cache existed
+		if msg.Err == nil {
+			a.allTasks = msg.Tasks
+			a.refreshSections()
+			a.loading = false
+		}
+		// If cache miss, keep loading=true until TasksRefreshedMsg arrives
+
+	case TasksRefreshedMsg:
+		// Background scan complete — silently update tasks
+		if msg.Err == nil {
 			a.allTasks = msg.Tasks
 			a.refreshSections()
 		}
@@ -138,7 +158,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			a.message = "Task added"
 		}
-		return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder)
+		return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath)
 
 	case PullCalDAVMsg:
 		if msg.Err != nil {
@@ -148,7 +168,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Notify != "" {
 				a.message += " · " + msg.Notify
 			}
-			return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder)
+			return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath)
 		}
 
 	case TaskEditedMsg:
@@ -160,7 +180,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				a.message = "Task updated"
 			}
-			return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder)
+			return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath)
 		} else {
 			msg.Task.Description = msg.NewSummary
 			a.syncBack(msg.Task)
@@ -323,7 +343,7 @@ func (a App) handleBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, a.keys.Reload):
 		a.loading = true
-		return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder)
+		return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath)
 	}
 
 	return a, nil

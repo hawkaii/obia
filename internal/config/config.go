@@ -69,6 +69,14 @@ func ConfigPath() (string, error) {
 	return filepath.Join(dir, "config.toml"), nil
 }
 
+func CachePath() (string, error) {
+	dir, err := configDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "cache.json"), nil
+}
+
 func Load() (Config, error) {
 	cfg := DefaultConfig()
 

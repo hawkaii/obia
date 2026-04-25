@@ -15,11 +15,22 @@ import (
 	"github.com/hawkaii/obia/internal/vault"
 )
 
-// LoadTasksCmd scans the vault and returns all parsed tasks.
-func LoadTasksCmd(vaultPath, taskFilesFolder string) tea.Cmd {
+// LoadCacheCmd reads the task cache from disk and returns it instantly.
+func LoadCacheCmd(cachePath string) tea.Cmd {
+	return func() tea.Msg {
+		tasks, err := vault.LoadCache(cachePath)
+		return TasksLoadedMsg{Tasks: tasks, Err: err}
+	}
+}
+
+// LoadTasksCmd scans the vault, saves the result to cache, and returns a refresh message.
+func LoadTasksCmd(vaultPath, taskFilesFolder, cachePath string) tea.Cmd {
 	return func() tea.Msg {
 		tasks, err := vault.ParseAllTasks(vaultPath, taskFilesFolder)
-		return TasksLoadedMsg{Tasks: tasks, Err: err}
+		if err == nil && cachePath != "" {
+			_ = vault.SaveCache(tasks, cachePath)
+		}
+		return TasksRefreshedMsg{Tasks: tasks, Err: err}
 	}
 }
 
