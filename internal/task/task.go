@@ -28,6 +28,8 @@ type Task struct {
 	Description    string
 	Status         Status
 	Due            *time.Time
+	Start          *time.Time
+	RRule          string
 	Tags           []string
 	WikiLinks      []string
 	Source         Source

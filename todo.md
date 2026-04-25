@@ -46,10 +46,16 @@ Add Cobra for CLI framework, then implement:
 - [x] CalDAV pull (`R` key): REPORT all VTODOs, update existing task file frontmatter, create new task files + inbox entries for remote-only tasks; auto-reload after pull
 - [x] toggle linked tasks: checkbox flip updates task file status + pushes to CalDAV; error shown in status bar if push fails
 - [x] `p` key: open add form pre-filled with task description, on submit rewrite plain task line to `[[uid|title]]` wikilink and create task file
+- [ ] add right-side stats overview panel (OpenCode-style) in browser view
+  - implement stats aggregator: total/open/done/done%, overdue/today/next 7d/no due, CalDAV linked/unlinked, top tags/files
+  - responsive layout: auto-hide stats panel on narrow terminals (< 110 cols)
+  - add toggle key for stats panel visibility (e.g., `s`)
+  - stats computed from all vault tasks (global) + current tab counts
 - [ ] task detail view: press `d` to render `tasks/<uid>.md` content as preview overlay (see sync.md)
 - [ ] open task source in Obsidian: press `o` to launch `obsidian://open?vault=...&file=...` URI — opens the note in the Obsidian app directly from Obia (works from WSL via Windows interop)
 - [ ] add form: upgrade Description field from single-line input to multi-line textarea
-- [ ] CalDAV: add `DTSTART` (start date) support
+- [x] CalDAV: add `DTSTART` (start date) support
+- [x] add repeat option in add/edit forms (`none`, `daily`, `weekly`, `monthly`, `yearly`) with RRULE sync
 
 ## Bugs
 

@@ -18,7 +18,9 @@ type RemoteTodo struct {
 	Status      string
 	Summary     string
 	Description string
+	Start       *time.Time
 	Due         *time.Time
+	RRule       string
 	Priority    int
 }
 
@@ -100,7 +102,9 @@ var (
 	summaryRe     = regexp.MustCompile(`(?m)^SUMMARY:(.+)$`)
 	descriptionRe = regexp.MustCompile(`(?m)^DESCRIPTION:(.+)$`)
 	priorityRe    = regexp.MustCompile(`(?m)^PRIORITY:(.+)$`)
+	startRe       = regexp.MustCompile(`(?m)^DTSTART(?:;VALUE=DATE)?:(.+)$`)
 	dueRe         = regexp.MustCompile(`(?m)^DUE(?:;VALUE=DATE)?:(.+)$`)
+	rruleRe       = regexp.MustCompile(`(?m)^RRULE:(.+)$`)
 )
 
 func parseCalendarResponse(body string) []RemoteTodo {
@@ -135,8 +139,14 @@ func parseCalendarResponse(body string) []RemoteTodo {
 		if sm := priorityRe.FindStringSubmatch(raw); sm != nil {
 			fmt.Sscanf(strings.TrimSpace(sm[1]), "%d", &todo.Priority)
 		}
+		if sm := startRe.FindStringSubmatch(raw); sm != nil {
+			todo.Start = parseICalDate(strings.TrimSpace(sm[1]))
+		}
 		if sm := dueRe.FindStringSubmatch(raw); sm != nil {
 			todo.Due = parseICalDate(strings.TrimSpace(sm[1]))
+		}
+		if sm := rruleRe.FindStringSubmatch(raw); sm != nil {
+			todo.RRule = strings.TrimSpace(sm[1])
 		}
 
 		todos = append(todos, todo)

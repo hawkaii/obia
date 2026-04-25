@@ -173,7 +173,7 @@ func EnsureTaskFolder(vaultPath, folder string) (string, string) {
 
 // CreateTaskFile writes a task file at folderPath/<uid>.md with YAML frontmatter,
 // a title header, and an optional description body.
-func CreateTaskFile(folderPath, uid, title, description string, due *time.Time, priority int, status string) error {
+func CreateTaskFile(folderPath, uid, title, description string, start, due *time.Time, rrule string, priority int, status string) error {
 	if status == "" {
 		status = "NEEDS-ACTION"
 	}
@@ -182,8 +182,14 @@ func CreateTaskFile(folderPath, uid, title, description string, due *time.Time, 
 	b.WriteString("---\n")
 	b.WriteString("type: task\n")
 	fmt.Fprintf(&b, "caldav-uid: %s\n", uid)
+	if start != nil {
+		b.WriteString("dtstart: " + start.Format(time.RFC3339) + "\n")
+	}
 	if due != nil {
 		b.WriteString("due: " + due.Format(time.RFC3339) + "\n")
+	}
+	if rrule != "" {
+		fmt.Fprintf(&b, "rrule: %s\n", rrule)
 	}
 	if priority > 0 {
 		fmt.Fprintf(&b, "priority: %d\n", priority)
@@ -250,7 +256,7 @@ func UpdateTaskFileStatus(filePath, status string) error {
 }
 
 // UpdateTaskFileFrontmatter overwrites due/status/priority fields in a task file's frontmatter.
-func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, priority int) error {
+func UpdateTaskFileFrontmatter(filePath string, start, due *time.Time, rrule, status string, priority int) error {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", filePath, err)
@@ -272,7 +278,7 @@ func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, p
 		return nil
 	}
 
-	updatedDue, updatedStatus, updatedPriority := false, false, false
+	updatedStart, updatedDue, updatedRRule, updatedStatus, updatedPriority := false, false, false, false, false
 
 	// First pass: update or remove existing fields.
 	// Build filtered lines to handle removals (due=nil clears the field, priority=0 clears it).
@@ -291,6 +297,16 @@ func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, p
 				filtered = append(filtered, "due: "+due.Format(time.RFC3339))
 			}
 			// due==nil: omit the line (clear due date)
+		case "dtstart":
+			updatedStart = true
+			if start != nil {
+				filtered = append(filtered, "dtstart: "+start.Format(time.RFC3339))
+			}
+		case "rrule":
+			updatedRRule = true
+			if rrule != "" {
+				filtered = append(filtered, "rrule: "+rrule)
+			}
 		case "status":
 			updatedStatus = true
 			if status != "" {
@@ -310,8 +326,14 @@ func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, p
 	}
 
 	// Insert missing fields before closing ---
+	if !updatedStart && start != nil {
+		filtered = append(filtered, "dtstart: "+start.Format(time.RFC3339))
+	}
 	if !updatedDue && due != nil {
 		filtered = append(filtered, "due: "+due.Format(time.RFC3339))
+	}
+	if !updatedRRule && rrule != "" {
+		filtered = append(filtered, "rrule: "+rrule)
 	}
 	if !updatedStatus && status != "" {
 		filtered = append(filtered, "status: "+status)
@@ -328,7 +350,7 @@ func UpdateTaskFileFrontmatter(filePath string, due *time.Time, status string, p
 
 // UpdateTaskFileContent updates title, body, and frontmatter fields (due/status/priority)
 // in a single read-modify-write pass.
-func UpdateTaskFileContent(filePath, title, body string, due *time.Time, status string, priority int) error {
+func UpdateTaskFileContent(filePath, title, body string, start, due *time.Time, rrule, status string, priority int) error {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", filePath, err)
@@ -352,7 +374,7 @@ func UpdateTaskFileContent(filePath, title, body string, due *time.Time, status 
 	}
 
 	// Rewrite frontmatter fields
-	updatedDue, updatedStatus, updatedPriority := false, false, false
+	updatedStart, updatedDue, updatedRRule, updatedStatus, updatedPriority := false, false, false, false, false
 	filtered := make([]string, 0, len(lines))
 	filtered = append(filtered, lines[0])
 	for i := 1; i < closingIdx; i++ {
@@ -362,10 +384,20 @@ func UpdateTaskFileContent(filePath, title, body string, due *time.Time, status 
 			continue
 		}
 		switch key {
+		case "dtstart":
+			updatedStart = true
+			if start != nil {
+				filtered = append(filtered, "dtstart: "+start.Format(time.RFC3339))
+			}
 		case "due":
 			updatedDue = true
 			if due != nil {
 				filtered = append(filtered, "due: "+due.Format(time.RFC3339))
+			}
+		case "rrule":
+			updatedRRule = true
+			if rrule != "" {
+				filtered = append(filtered, "rrule: "+rrule)
 			}
 		case "status":
 			updatedStatus = true
@@ -383,8 +415,14 @@ func UpdateTaskFileContent(filePath, title, body string, due *time.Time, status 
 			filtered = append(filtered, lines[i])
 		}
 	}
+	if !updatedStart && start != nil {
+		filtered = append(filtered, "dtstart: "+start.Format(time.RFC3339))
+	}
 	if !updatedDue && due != nil {
 		filtered = append(filtered, "due: "+due.Format(time.RFC3339))
+	}
+	if !updatedRRule && rrule != "" {
+		filtered = append(filtered, "rrule: "+rrule)
 	}
 	if !updatedStatus && status != "" {
 		filtered = append(filtered, "status: "+status)

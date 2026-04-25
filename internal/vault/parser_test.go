@@ -63,7 +63,9 @@ func TestParseFrontmatter(t *testing.T) {
 	content := `---
 type: task
 title: "deploy fix"
+dtstart: 2026-03-30
 due: 2026-04-01
+rrule: FREQ=WEEKLY
 caldav-uid: abc-123
 ---
 
@@ -88,6 +90,12 @@ caldav-uid: abc-123
 	}
 	if tasks[0].Due.Format("2006-01-02") != "2026-04-01" {
 		t.Errorf("due = %v", tasks[0].Due)
+	}
+	if tasks[0].Start == nil || tasks[0].Start.Format("2006-01-02") != "2026-03-30" {
+		t.Errorf("start = %v", tasks[0].Start)
+	}
+	if tasks[0].RRule != "FREQ=WEEKLY" {
+		t.Errorf("rrule = %q", tasks[0].RRule)
 	}
 }
 

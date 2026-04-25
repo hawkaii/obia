@@ -15,6 +15,8 @@ var (
 	priorityOptions = []string{"none", "1 (highest)", "5 (normal)", "9 (lowest)"}
 	priorityValues  = []int{0, 1, 5, 9}
 	statusOptions   = []string{"NEEDS-ACTION", "IN-PROCESS", "COMPLETED", "CANCELLED"}
+	repeatOptions   = []string{"none", "daily", "weekly", "monthly", "yearly"}
+	repeatRules     = []string{"", "FREQ=DAILY", "FREQ=WEEKLY", "FREQ=MONTHLY", "FREQ=YEARLY"}
 	pushOptions     = []string{"No", "Yes"}
 
 	formStyle = lipgloss.NewStyle().
@@ -47,22 +49,28 @@ var (
 // focusIndex constants
 const (
 	fieldSummary     = 0
-	fieldDueDate     = 1
-	fieldDueTime     = 2
-	fieldDescription = 3
-	fieldPriority    = 4
-	fieldStatus      = 5
-	fieldPush        = 6 // only when showPush
+	fieldStartDate   = 1
+	fieldStartTime   = 2
+	fieldDueDate     = 3
+	fieldDueTime     = 4
+	fieldDescription = 5
+	fieldPriority    = 6
+	fieldStatus      = 7
+	fieldRepeat      = 8
+	fieldPush        = 9 // only when showPush
 )
 
 // Model is the edit task form component.
 type Model struct {
 	summary     textinput.Model
+	startDate   textinput.Model
+	startTime   textinput.Model
 	dueDate     textinput.Model
 	dueTime     textinput.Model
 	description textinput.Model
 	priority    int
 	status      int
+	repeat      int
 	push        int
 	showPush    bool // true when no CalDAV UID yet and CalDAV is configured
 	focusIndex  int
@@ -106,6 +114,24 @@ func New(t *task.Task, showPush bool) Model {
 	desc.Width = 40
 	desc.SetValue(t.Body)
 
+	sd := textinput.New()
+	sd.Placeholder = "YYYY-MM-DD"
+	sd.Prompt = ""
+	sd.CharLimit = 10
+	sd.Width = 12
+	if t.Start != nil {
+		sd.SetValue(t.Start.Format("2006-01-02"))
+	}
+
+	st := textinput.New()
+	st.Placeholder = "HH:MM"
+	st.Prompt = ""
+	st.CharLimit = 5
+	st.Width = 7
+	if t.Start != nil && (t.Start.Hour() != 0 || t.Start.Minute() != 0) {
+		st.SetValue(t.Start.Format("15:04"))
+	}
+
 	// Map task priority to option index
 	priorityIdx := 0
 	for i, v := range priorityValues {
@@ -124,13 +150,24 @@ func New(t *task.Task, showPush bool) Model {
 		}
 	}
 
+	repeatIdx := 0
+	for i, r := range repeatRules {
+		if r == t.RRule {
+			repeatIdx = i
+			break
+		}
+	}
+
 	return Model{
 		summary:     si,
+		startDate:   sd,
+		startTime:   st,
 		dueDate:     dd,
 		dueTime:     dt,
 		description: desc,
 		priority:    priorityIdx,
 		status:      statusIdx,
+		repeat:      repeatIdx,
 		showPush:    showPush,
 		focusIndex:  fieldSummary,
 	}
@@ -138,13 +175,15 @@ func New(t *task.Task, showPush bool) Model {
 
 func (m *Model) numFields() int {
 	if m.showPush {
-		return 7
+		return 10
 	}
-	return 6
+	return 9
 }
 
 func (m *Model) updateFocus() {
 	m.summary.Blur()
+	m.startDate.Blur()
+	m.startTime.Blur()
 	m.dueDate.Blur()
 	m.dueTime.Blur()
 	m.description.Blur()
@@ -152,6 +191,10 @@ func (m *Model) updateFocus() {
 	switch m.focusIndex {
 	case fieldSummary:
 		m.summary.Focus()
+	case fieldStartDate:
+		m.startDate.Focus()
+	case fieldStartTime:
+		m.startTime.Focus()
 	case fieldDueDate:
 		m.dueDate.Focus()
 	case fieldDueTime:
@@ -164,6 +207,8 @@ func (m *Model) updateFocus() {
 func (m *Model) isTextField() bool {
 	switch m.focusIndex {
 	case fieldSummary, fieldDueDate, fieldDueTime, fieldDescription:
+		return true
+	case fieldStartDate, fieldStartTime:
 		return true
 	}
 	return false
@@ -225,6 +270,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					m.status = (m.status - 1 + len(statusOptions)) % len(statusOptions)
 				}
 				return m, nil
+			case fieldRepeat:
+				if k == "right" {
+					m.repeat = (m.repeat + 1) % len(repeatOptions)
+				} else {
+					m.repeat = (m.repeat - 1 + len(repeatOptions)) % len(repeatOptions)
+				}
+				return m, nil
 			case fieldPush:
 				if k == "right" {
 					m.push = (m.push + 1) % len(pushOptions)
@@ -239,6 +291,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		switch m.focusIndex {
 		case fieldSummary:
 			m.summary, cmd = m.summary.Update(msg)
+		case fieldStartDate:
+			m.startDate, cmd = m.startDate.Update(msg)
+		case fieldStartTime:
+			m.startTime, cmd = m.startTime.Update(msg)
 		case fieldDueDate:
 			m.dueDate, cmd = m.dueDate.Update(msg)
 		case fieldDueTime:
@@ -254,6 +310,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch m.focusIndex {
 	case fieldSummary:
 		m.summary, cmd = m.summary.Update(msg)
+	case fieldStartDate:
+		m.startDate, cmd = m.startDate.Update(msg)
+	case fieldStartTime:
+		m.startTime, cmd = m.startTime.Update(msg)
 	case fieldDueDate:
 		m.dueDate, cmd = m.dueDate.Update(msg)
 	case fieldDueTime:
@@ -272,6 +332,21 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	b.WriteString(m.renderField("Summary", m.summary.View(), m.focusIndex == fieldSummary))
+	b.WriteString("\n")
+
+	// Start date + time on one line
+	startDateActive := m.focusIndex == fieldStartDate
+	startTimeActive := m.focusIndex == fieldStartTime
+	startLabel := labelStyle.Render("Start:")
+	startDateView := m.startDate.View()
+	startTimeView := m.startTime.View()
+	if !startDateActive {
+		startDateView = inactiveFieldStyle.Render(m.startDate.Value())
+	}
+	if !startTimeActive {
+		startTimeView = inactiveFieldStyle.Render(m.startTime.Value())
+	}
+	b.WriteString(fmt.Sprintf("%s %s  %s", startLabel, startDateView, startTimeView))
 	b.WriteString("\n")
 
 	// Due date + time on one line
@@ -296,6 +371,9 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	b.WriteString(m.renderField("Status", m.renderCycle(statusOptions, m.status, m.focusIndex == fieldStatus), m.focusIndex == fieldStatus))
+	b.WriteString("\n")
+
+	b.WriteString(m.renderField("Repeat", m.renderCycle(repeatOptions, m.repeat, m.focusIndex == fieldRepeat), m.focusIndex == fieldRepeat))
 	b.WriteString("\n")
 
 	if m.showPush {
@@ -352,5 +430,27 @@ func (m Model) GetDue() *time.Time {
 	return &t
 }
 
+// GetStart combines the start date and time fields into a *time.Time.
+// Returns nil if the date field is empty or unparseable.
+func (m Model) GetStart() *time.Time {
+	dateVal := strings.TrimSpace(m.startDate.Value())
+	if dateVal == "" {
+		return nil
+	}
+	t, err := time.ParseInLocation("2006-01-02", dateVal, time.Local)
+	if err != nil {
+		return nil
+	}
+	timeVal := strings.TrimSpace(m.startTime.Value())
+	if timeVal != "" {
+		var h, min int
+		if _, err := fmt.Sscanf(timeVal, "%d:%d", &h, &min); err == nil {
+			t = time.Date(t.Year(), t.Month(), t.Day(), h, min, 0, 0, time.Local)
+		}
+	}
+	return &t
+}
+
 func (m Model) GetPriority() int  { return priorityValues[m.priority] }
 func (m Model) GetStatus() string { return statusOptions[m.status] }
+func (m Model) GetRRule() string  { return repeatRules[m.repeat] }

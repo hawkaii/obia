@@ -167,7 +167,7 @@ Tasks appear in the default **Reminders** list on iOS. They will **not** appear 
 | <kbd>Enter</kbd> | Toggle task done/undone |
 | <kbd>Ctrl+G</kbd> | Open task's source file in `$EDITOR` at the exact line |
 | <kbd>a</kbd> | Add new task (opens rich form) |
-| <kbd>e</kbd> | Edit task (summary, due date/time, description, priority, status) |
+| <kbd>e</kbd> | Edit task (summary, start date/time, due date/time, repeat, description, priority, status) |
 | <kbd>p</kbd> | Upgrade plain task to linked task (opens form pre-filled) |
 | <kbd>R</kbd> | Pull all tasks from CalDAV server |
 | <kbd>/</kbd> | Fuzzy search / filter |
@@ -292,7 +292,9 @@ The task file at `tasks/<uid>.md` stores all the metadata:
 ---
 type: task
 caldav-uid: 3f8a1b2c-...
+dtstart: 2026-04-01T09:00:00Z
 due: 2026-04-02T09:00:00Z
+rrule: FREQ=WEEKLY
 priority: 5
 status: NEEDS-ACTION
 ---
@@ -320,7 +322,7 @@ password = "secret"
 ```
 
 ### Push
-Press <kbd>p</kbd> on a plain task to open the form — set due date, time, description, priority, and status, then push. The task line is rewritten to `[[uid|title]]` and a task file is created.
+Press <kbd>p</kbd> on a plain task to open the form — set start date/time, due date/time, repeat, description, priority, and status, then push. The task line is rewritten to `[[uid|title]]` and a task file is created.
 
 When adding a new task with <kbd>a</kbd>, toggle the **Push?** field in the form to push immediately.
 
@@ -401,10 +403,12 @@ Point `vault.path` in your config at any markdown directory and Obia will scan i
 
 ## Roadmap
 
+- [x] Daily tab — all tasks from `diary/*.md` across all dates
+- [x] Config-driven tabs with `[[ui.tabs]]` — fully customizable browser tabs
+- [ ] Stats overview panel — right-side stats sidebar (OpenCode-style) with task counts, due breakdown, CalDAV sync status, top tags/files; press `s` to toggle; auto-hide on narrow terminals
 - [ ] Task detail view — press `d` to render `tasks/<uid>.md` as a preview overlay
 - [ ] Open in Obsidian — press `o` to launch `obsidian://open?vault=...&file=...`
 - [ ] CLI flags (Cobra) — `--vault`, `--config`, `--debug`, `--no-tui`
-- [ ] Daily tab — all tasks from `diary/*.md` across all dates
 - [ ] First-run setup wizard
 - [ ] mtime-based task caching (skip unchanged files)
 - [ ] Multi-line description textarea
