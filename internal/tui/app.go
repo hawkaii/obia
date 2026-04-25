@@ -47,8 +47,9 @@ type App struct {
 	sections  []section.Section
 	activeTab int
 	cursor    int
-	loading   bool
-	cachePath string
+	loading        bool
+	loadedFromScan bool
+	cachePath      string
 
 	spinner spinner.Model
 
@@ -117,17 +118,19 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.ctx.SetSize(msg.Width, msg.Height)
 
 	case TasksLoadedMsg:
-		// Cache hit — show tasks instantly; loading already false if cache existed
-		if msg.Err == nil {
+		if msg.Err == nil && !a.loadedFromScan {
 			a.allTasks = msg.Tasks
 			a.refreshSections()
 			a.loading = false
+		} else if msg.Err != nil {
+			a.loading = true
 		}
-		// If cache miss, keep loading=true until TasksRefreshedMsg arrives
 
 	case TasksRefreshedMsg:
-		// Background scan complete — silently update tasks
-		if msg.Err == nil {
+		a.loadedFromScan = true
+		if msg.Err != nil {
+			a.message = "Error scanning vault: " + msg.Err.Error()
+		} else {
 			a.allTasks = msg.Tasks
 			a.refreshSections()
 		}

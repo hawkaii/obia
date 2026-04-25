@@ -3,11 +3,15 @@ package vault
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 
 	"github.com/hawkaii/obia/internal/task"
 )
 
 func SaveCache(tasks []task.Task, path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
 	data, err := json.Marshal(tasks)
 	if err != nil {
 		return err
