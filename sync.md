@@ -112,13 +112,25 @@ Parser hydrates UID, due, status, priority by resolving wikilinks to task files.
 
 ---
 
-## Due Date Fields in Add Form
+## Start, Due, and Repeat Fields in Forms
 
-Two separate fields:
-- `Due date:  [2026-04-02]`
-- `Due time:  [15:30     ]` (optional — if empty, sends date-only VTODO)
+The add/edit forms support:
+- `Start date: [2026-04-01]`
+- `Start time: [09:00     ]` (optional — if empty, sends date-only DTSTART)
+- `Due date:   [2026-04-02]`
+- `Due time:   [15:30     ]` (optional — if empty, sends date-only DUE)
+- `Repeat:     [none|daily|weekly|monthly|yearly]`
 
-Same pattern for start date/time (future — tracked in todo.md).
+Repeat values map to RRULE:
+- `daily` -> `FREQ=DAILY`
+- `weekly` -> `FREQ=WEEKLY`
+- `monthly` -> `FREQ=MONTHLY`
+- `yearly` -> `FREQ=YEARLY`
+
+Task file frontmatter persists this as:
+- `dtstart: <RFC3339>`
+- `due: <RFC3339>`
+- `rrule: FREQ=...`
 
 ---
 

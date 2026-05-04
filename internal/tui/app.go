@@ -68,11 +68,13 @@ func NewApp(cfg config.Config) App {
 	if len(dfs) == 0 && cfg.Vault.DailyNotesFolder != "" {
 		dfs = []string{cfg.Vault.DailyNotesFolder}
 	}
-	_ = dfs
 
 	var sections []section.Section
 	for _, tab := range cfg.UI.Tabs {
 		tabFolders := tab.Folders
+		if len(tabFolders) == 0 {
+			tabFolders = dfs
+		}
 
 		var fn tasksection.FilterFunc
 		var warningParts []string
@@ -268,7 +270,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.message = "Editor error: " + msg.Err.Error()
 		}
 		a.loading = true
+		a.loadedFromScan = false
 		return a, tea.Batch(
+			LoadCacheCmd(a.cachePath),
 			LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath),
 			a.spinner.Tick,
 		)
@@ -461,9 +465,11 @@ func (a App) handleAddFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.addForm.Submitted() {
 		summary := a.addForm.GetSummary()
 		target := a.addForm.GetTarget()
+		start := a.addForm.GetStart()
 		due := a.addForm.GetDue()
 		priority := a.addForm.GetPriority()
 		status := a.addForm.GetStatus()
+		rrule := a.addForm.GetRRule()
 		description := a.addForm.GetDescription()
 		push := a.addForm.GetPush()
 		cfg := a.ctx.Config
@@ -472,13 +478,13 @@ func (a App) handleAddFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if a.addFormTask != nil {
 			// p key path: link an existing plain task
-			return a, LinkExistingTaskCmd(a.addFormTask, summary, description, due, priority, status, push, cfg)
+			return a, LinkExistingTaskCmd(a.addFormTask, summary, description, start, due, priority, status, rrule, push, cfg)
 		}
 
 		// a key path: create new task
 		vcfg := cfg.Vault
 		filePath := vault.ResolveTaskFile(vcfg.Path, vcfg.DailyNotesFolder, vcfg.DailyNotesFormat, vcfg.DefaultTaskFile, target)
-		return a, AddTaskWithMetaCmd(filePath, summary, description, due, priority, status, push, cfg)
+		return a, AddTaskWithMetaCmd(filePath, summary, description, start, due, priority, status, rrule, push, cfg)
 	}
 
 	return a, cmd
@@ -496,15 +502,17 @@ func (a App) handleEditFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if a.editForm.Submitted() {
 		summary := a.editForm.GetSummary()
+		start := a.editForm.GetStart()
 		due := a.editForm.GetDue()
 		priority := a.editForm.GetPriority()
 		status := a.editForm.GetStatus()
+		rrule := a.editForm.GetRRule()
 		description := a.editForm.GetDescription()
 		push := a.editForm.GetPush()
 		cfg := a.ctx.Config
 
 		a.mode = modeBrowser
-		return a, EditTaskCmd(a.editFormTask, summary, description, due, priority, status, push, cfg)
+		return a, EditTaskCmd(a.editFormTask, summary, description, start, due, priority, status, rrule, push, cfg)
 	}
 
 	return a, cmd

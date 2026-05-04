@@ -52,6 +52,14 @@ type Config struct {
 	UI     UI     `toml:"ui"`
 }
 
+func defaultTabs() []TabConfig {
+	return []TabConfig{
+		{Name: "Tasks", Filter: "open"},
+		{Name: "Overdue", Filter: "overdue"},
+		{Name: "CalDAV", Filter: "caldav"},
+	}
+}
+
 func DefaultConfig() Config {
 	return Config{
 		Vault: Vault{
@@ -104,13 +112,7 @@ func Load() (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if len(cfg.UI.Tabs) == 0 {
-				cfg.UI.Tabs = []TabConfig{
-					{Name: "Tasks", Filter: "open"},
-					{Name: "Overdue", Filter: "overdue"},
-					{Name: "CalDAV", Filter: "caldav"},
-				}
-			}
+			cfg.UI.Tabs = defaultTabs()
 			return cfg, nil
 		}
 		return cfg, fmt.Errorf("reading config: %w", err)
@@ -121,11 +123,7 @@ func Load() (Config, error) {
 	}
 
 	if len(cfg.UI.Tabs) == 0 {
-		cfg.UI.Tabs = []TabConfig{
-			{Name: "Tasks", Filter: "open"},
-			{Name: "Overdue", Filter: "overdue"},
-			{Name: "CalDAV", Filter: "caldav"},
-		}
+		cfg.UI.Tabs = defaultTabs()
 	}
 
 	return cfg, nil

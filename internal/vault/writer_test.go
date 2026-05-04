@@ -272,3 +272,25 @@ func TestWriteFrontmatterUID_SkipsNoFrontmatter(t *testing.T) {
 		t.Errorf("expected no caldav-uid written to file without frontmatter, got:\n%s", string(data))
 	}
 }
+
+func TestCreateTaskFile_WritesStartAndRRule(t *testing.T) {
+	dir := t.TempDir()
+	start := time.Date(2026, 3, 30, 9, 0, 0, 0, time.UTC)
+	due := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
+
+	if err := CreateTaskFile(dir, "uid-1", "Title", "Body", &start, &due, "FREQ=WEEKLY", 5, "NEEDS-ACTION"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "uid-1.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "dtstart: 2026-03-30T09:00:00Z") {
+		t.Fatalf("missing dtstart in file:\n%s", s)
+	}
+	if !strings.Contains(s, "rrule: FREQ=WEEKLY") {
+		t.Fatalf("missing rrule in file:\n%s", s)
+	}
+}

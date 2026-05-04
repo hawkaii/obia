@@ -10,7 +10,7 @@ import (
 // priority: 0 = omit, 1-9 per RFC 5545 (1=highest, 9=lowest).
 // status: defaults to "NEEDS-ACTION" if empty.
 // description: optional long-form body, separate from summary.
-func BuildVTodo(uid, summary, description string, due *time.Time, priority int, status string) string {
+func BuildVTodo(uid, summary, description string, start, due *time.Time, rrule string, priority int, status string) string {
 	now := formatDateTime(time.Now())
 
 	if status == "" {
@@ -36,12 +36,24 @@ func BuildVTodo(uid, summary, description string, due *time.Time, priority int, 
 		fmt.Fprintf(&b, "PRIORITY:%d\r\n", priority)
 	}
 
+	if start != nil {
+		if start.Hour() == 0 && start.Minute() == 0 && start.Second() == 0 {
+			fmt.Fprintf(&b, "DTSTART;VALUE=DATE:%s\r\n", formatDate(*start))
+		} else {
+			fmt.Fprintf(&b, "DTSTART:%s\r\n", formatDateTime(*start))
+		}
+	}
+
 	if due != nil {
 		if due.Hour() == 0 && due.Minute() == 0 && due.Second() == 0 {
 			fmt.Fprintf(&b, "DUE;VALUE=DATE:%s\r\n", formatDate(*due))
 		} else {
 			fmt.Fprintf(&b, "DUE:%s\r\n", formatDateTime(*due))
 		}
+	}
+
+	if rrule != "" {
+		fmt.Fprintf(&b, "RRULE:%s\r\n", rrule)
 	}
 
 	b.WriteString("END:VTODO\r\n")
@@ -54,5 +66,5 @@ func formatDate(t time.Time) string {
 }
 
 func formatDateTime(t time.Time) string {
-	return t.Format("20060102T150405Z")
+	return t.UTC().Format("20060102T150405Z")
 }

@@ -81,6 +81,12 @@ func ParseTasks(filePath string) ([]task.Task, error) {
 		if frontmatter.due != nil {
 			t.Due = frontmatter.due
 		}
+		if frontmatter.dtstart != nil {
+			t.Start = frontmatter.dtstart
+		}
+		if frontmatter.rrule != "" {
+			t.RRule = frontmatter.rrule
+		}
 
 		tasks = append(tasks, t)
 	}
@@ -153,8 +159,12 @@ func ParseAllTasks(vaultPath, taskFilesFolder string) ([]task.Task, error) {
 		if fm.due != nil {
 			allTasks[i].Due = fm.due
 		}
+		if fm.dtstart != nil {
+			allTasks[i].Start = fm.dtstart
+		}
 		allTasks[i].Priority = fm.priority
 		allTasks[i].CalDAVStatus = fm.status
+		allTasks[i].RRule = fm.rrule
 		allTasks[i].Body = readTaskFileBody(taskFile)
 	}
 
@@ -182,8 +192,10 @@ func extractTags(s string) []string {
 type frontmatterData struct {
 	calDAVUID  string
 	due        *time.Time
+	dtstart    *time.Time
 	isTaskFile bool // true if frontmatter contains "type: task"
 	priority   int
+	rrule      string
 	status     string
 }
 
@@ -216,6 +228,12 @@ func parseFrontmatter(f *os.File) frontmatterData {
 			} else if t, err := time.Parse(time.RFC3339, value); err == nil {
 				data.due = &t
 			}
+		case "dtstart":
+			if t, err := time.Parse("2006-01-02", value); err == nil {
+				data.dtstart = &t
+			} else if t, err := time.Parse(time.RFC3339, value); err == nil {
+				data.dtstart = &t
+			}
 		case "type":
 			if value == "task" {
 				data.isTaskFile = true
@@ -224,6 +242,8 @@ func parseFrontmatter(f *os.File) frontmatterData {
 			if p, err := strconv.Atoi(value); err == nil {
 				data.priority = p
 			}
+		case "rrule":
+			data.rrule = value
 		case "status":
 			data.status = value
 		}

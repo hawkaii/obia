@@ -72,7 +72,7 @@ func ToggleTaskCmd(t *task.Task, caldavCfg config.CalDAV) tea.Cmd {
 			_ = vault.UpdateTaskFileStatus(t.LinkedTaskFile, newStatus)
 
 			if caldavCfg.URL != "" {
-				_, pushErr := caldav.PushTask(caldavCfg, t, t.Due, 0, newStatus, "")
+				_, pushErr := caldav.PushTask(caldavCfg, t, t.Start, t.Due, t.RRule, 0, newStatus, "")
 				if pushErr != nil {
 					return TaskToggledMsg{Task: t, CalDAVErr: pushErr}
 				}
@@ -95,9 +95,10 @@ func AddTaskCmd(filePath, description string) tea.Cmd {
 // and optionally pushes to CalDAV.
 func AddTaskWithMetaCmd(
 	filePath, summary, description string,
-	due *time.Time,
+	start, due *time.Time,
 	priority int,
 	status string,
+	rrule string,
 	push bool,
 	cfg config.Config,
 ) tea.Cmd {
@@ -109,7 +110,7 @@ func AddTaskWithMetaCmd(
 
 		if push && cfg.CalDAV.URL != "" {
 			tmpTask := &task.Task{Description: summary, CalDAVUID: uid}
-			uid2, err := caldav.PushTask(cfg.CalDAV, tmpTask, due, priority, status, description)
+			uid2, err := caldav.PushTask(cfg.CalDAV, tmpTask, start, due, rrule, priority, status, description)
 			if err != nil {
 				pushErr = err
 			} else {
@@ -117,7 +118,7 @@ func AddTaskWithMetaCmd(
 			}
 		}
 
-		if err := vault.CreateTaskFile(taskFilesDir, uid, summary, description, due, priority, status); err != nil {
+		if err := vault.CreateTaskFile(taskFilesDir, uid, summary, description, start, due, rrule, priority, status); err != nil {
 			return TaskAddedMsg{Description: summary, Err: err}
 		}
 
@@ -141,9 +142,10 @@ func AddTaskWithMetaCmd(
 func LinkExistingTaskCmd(
 	t *task.Task,
 	summary, description string,
-	due *time.Time,
+	start, due *time.Time,
 	priority int,
 	status string,
+	rrule string,
 	push bool,
 	cfg config.Config,
 ) tea.Cmd {
@@ -155,7 +157,7 @@ func LinkExistingTaskCmd(
 
 		if push && cfg.CalDAV.URL != "" {
 			pushTask := &task.Task{Description: summary, CalDAVUID: uid}
-			uid2, err := caldav.PushTask(cfg.CalDAV, pushTask, due, priority, status, description)
+			uid2, err := caldav.PushTask(cfg.CalDAV, pushTask, start, due, rrule, priority, status, description)
 			if err != nil {
 				pushErr = err
 			} else {
@@ -163,7 +165,7 @@ func LinkExistingTaskCmd(
 			}
 		}
 
-		if err := vault.CreateTaskFile(taskFilesDir, uid, summary, description, due, priority, status); err != nil {
+		if err := vault.CreateTaskFile(taskFilesDir, uid, summary, description, start, due, rrule, priority, status); err != nil {
 			return TaskAddedMsg{Description: summary, Err: err}
 		}
 
@@ -205,13 +207,13 @@ func PullCalDAVCmd(cfg config.Config) tea.Cmd {
 			taskFile := filepath.Join(taskFilesDir, todo.UID+".md")
 
 			if _, statErr := os.Stat(taskFile); statErr == nil {
-				if err := vault.UpdateTaskFileFrontmatter(taskFile, todo.Due, todo.Status, todo.Priority); err != nil {
+				if err := vault.UpdateTaskFileFrontmatter(taskFile, todo.Start, todo.Due, todo.RRule, todo.Status, todo.Priority); err != nil {
 					fileErrs++
 				} else {
 					updated++
 				}
 			} else {
-				if err := vault.CreateTaskFile(taskFilesDir, todo.UID, todo.Summary, todo.Description, todo.Due, todo.Priority, todo.Status); err != nil {
+				if err := vault.CreateTaskFile(taskFilesDir, todo.UID, todo.Summary, todo.Description, todo.Start, todo.Due, todo.RRule, todo.Priority, todo.Status); err != nil {
 					fileErrs++
 					continue
 				}
@@ -237,7 +239,7 @@ func PullCalDAVCmd(cfg config.Config) tea.Cmd {
 // PushCalDAVCmd pushes an existing task to CalDAV via the push form.
 func PushCalDAVCmd(cfg config.CalDAV, t *task.Task) tea.Cmd {
 	return func() tea.Msg {
-		uid, err := caldav.PushTask(cfg, t, nil, 0, "", "")
+		uid, err := caldav.PushTask(cfg, t, t.Start, t.Due, t.RRule, 0, "", "")
 		return CalDAVPushedMsg{Task: t, UID: uid, Err: err}
 	}
 }
@@ -250,14 +252,15 @@ func PushCalDAVCmd(cfg config.CalDAV, t *task.Task) tea.Cmd {
 func EditTaskCmd(
 	t *task.Task,
 	newSummary, body string,
-	due *time.Time,
+	start, due *time.Time,
 	priority int,
 	status string,
+	rrule string,
 	push bool,
 	cfg config.Config,
 ) tea.Cmd {
 	return func() tea.Msg {
-		hasMetadata := due != nil || priority > 0 || status != "" || body != ""
+		hasMetadata := start != nil || due != nil || rrule != "" || priority > 0 || status != "" || body != ""
 
 		// Plain task with no metadata change → simple description rewrite
 		if t.LinkedTaskFile == "" && !hasMetadata {
@@ -277,7 +280,7 @@ func EditTaskCmd(
 
 			if push && cfg.CalDAV.URL != "" {
 				pushTask := &task.Task{Description: newSummary, CalDAVUID: uid}
-				uid2, err := caldav.PushTask(cfg.CalDAV, pushTask, due, priority, status, body)
+				uid2, err := caldav.PushTask(cfg.CalDAV, pushTask, start, due, rrule, priority, status, body)
 				if err != nil {
 					caldavErr = err
 				} else {
@@ -285,7 +288,7 @@ func EditTaskCmd(
 				}
 			}
 
-			if err := vault.CreateTaskFile(taskFilesDir, uid, newSummary, body, due, priority, status); err != nil {
+			if err := vault.CreateTaskFile(taskFilesDir, uid, newSummary, body, start, due, rrule, priority, status); err != nil {
 				return TaskEditedMsg{Task: t, Err: err}
 			}
 			if err := vault.RewriteTaskLine(t.Source.FilePath, t.Source.Line, uid, newSummary); err != nil {
@@ -296,7 +299,7 @@ func EditTaskCmd(
 		}
 
 		// Linked task → update task file in one pass
-		if err := vault.UpdateTaskFileContent(t.LinkedTaskFile, newSummary, body, due, status, priority); err != nil {
+		if err := vault.UpdateTaskFileContent(t.LinkedTaskFile, newSummary, body, start, due, rrule, status, priority); err != nil {
 			return TaskEditedMsg{Task: t, Err: err}
 		}
 		if newSummary != t.Description {
@@ -309,9 +312,9 @@ func EditTaskCmd(
 		// Push if already synced to CalDAV (auto-push, no toggle needed)
 		var caldavErr error
 		if t.CalDAVUID != "" && cfg.CalDAV.URL != "" {
-			_, caldavErr = caldav.PushTask(cfg.CalDAV, t, due, priority, status, body)
+			_, caldavErr = caldav.PushTask(cfg.CalDAV, t, start, due, rrule, priority, status, body)
 		} else if push && cfg.CalDAV.URL != "" {
-			uid, err := caldav.PushTask(cfg.CalDAV, t, due, priority, status, body)
+			uid, err := caldav.PushTask(cfg.CalDAV, t, start, due, rrule, priority, status, body)
 			if err != nil {
 				caldavErr = err
 			} else {
