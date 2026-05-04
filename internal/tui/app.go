@@ -68,11 +68,13 @@ func NewApp(cfg config.Config) App {
 	if len(dfs) == 0 && cfg.Vault.DailyNotesFolder != "" {
 		dfs = []string{cfg.Vault.DailyNotesFolder}
 	}
-	_ = dfs
 
 	var sections []section.Section
 	for _, tab := range cfg.UI.Tabs {
 		tabFolders := tab.Folders
+		if len(tabFolders) == 0 {
+			tabFolders = dfs
+		}
 
 		var fn tasksection.FilterFunc
 		var warningParts []string
@@ -268,7 +270,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.message = "Editor error: " + msg.Err.Error()
 		}
 		a.loading = true
+		a.loadedFromScan = false
 		return a, tea.Batch(
+			LoadCacheCmd(a.cachePath),
 			LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath),
 			a.spinner.Tick,
 		)

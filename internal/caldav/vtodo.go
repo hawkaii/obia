@@ -66,5 +66,5 @@ func formatDate(t time.Time) string {
 }
 
 func formatDateTime(t time.Time) string {
-	return t.Format("20060102T150405Z")
+	return t.UTC().Format("20060102T150405Z")
 }

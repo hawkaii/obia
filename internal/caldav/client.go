@@ -102,8 +102,8 @@ var (
 	summaryRe     = regexp.MustCompile(`(?m)^SUMMARY:(.+)$`)
 	descriptionRe = regexp.MustCompile(`(?m)^DESCRIPTION:(.+)$`)
 	priorityRe    = regexp.MustCompile(`(?m)^PRIORITY:(.+)$`)
-	startRe       = regexp.MustCompile(`(?m)^DTSTART(?:;VALUE=DATE)?:(.+)$`)
-	dueRe         = regexp.MustCompile(`(?m)^DUE(?:;VALUE=DATE)?:(.+)$`)
+	startRe       = regexp.MustCompile(`(?m)^DTSTART(?:;[^:]*)?:(.+)$`)
+	dueRe         = regexp.MustCompile(`(?m)^DUE(?:;[^:]*)?:(.+)$`)
 	rruleRe       = regexp.MustCompile(`(?m)^RRULE:(.+)$`)
 )
 
