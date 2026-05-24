@@ -1,0 +1,50 @@
+# obia configuration for personal vault
+# Copy to ~/.config/obia/config.toml
+
+[vault]
+path = "/mnt/d/obsidian/notes"
+daily_notes_folder = "diary"
+daily_notes_format = "2006-01-02"
+default_task_file = "todo.md"
+add_task_target = "daily"
+task_files_folder = "tasks"
+inbox_file = "tasks/inbox.md"
+
+[hermes]
+endpoint = "http://YOUR_VM_IP:4123"
+repo = "personal"
+
+[caldav]
+# url = "https://your-caldav-server.com"
+# username = "you"
+# password = "your-password"
+# auto_push = false
+
+[ui]
+default_tab = "context"
+
+  [[ui.tabs]]
+  name = "Context"
+  filter = "open"
+  show_done = false
+
+  [[ui.tabs]]
+  name = "Today"
+  filter = "timewindow"
+  window = "day"
+  folders = ["diary"]
+
+  [[ui.tabs]]
+  name = "Week"
+  filter = "timewindow"
+  window = "week"
+  folders = ["diary"]
+
+  [[ui.tabs]]
+  name = "Open"
+  filter = "open"
+
+  [[ui.tabs]]
+  name = "Overdue"
+  filter = "overdue"
+  show_done = false
