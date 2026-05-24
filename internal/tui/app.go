@@ -10,9 +10,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hawkaii/obia/internal/config"
+	"github.com/hawkaii/obia/internal/hermes"
 	"github.com/hawkaii/obia/internal/task"
 	"github.com/hawkaii/obia/internal/tui/components/addform"
 	"github.com/hawkaii/obia/internal/tui/components/editform"
+	"github.com/hawkaii/obia/internal/tui/components/hermessection"
 	"github.com/hawkaii/obia/internal/tui/components/section"
 	"github.com/hawkaii/obia/internal/tui/components/tasksection"
 	appctx "github.com/hawkaii/obia/internal/tui/context"
@@ -26,6 +28,7 @@ const (
 	modeBrowser appMode = iota
 	modeAddForm
 	modeEditForm
+	modeChat
 )
 
 type inputMode int
@@ -52,6 +55,11 @@ type App struct {
 	cachePath      string
 
 	spinner spinner.Model
+
+	hermesSection *hermessection.Model
+	hermesClient  *hermes.Client
+	chatInput     string
+	chatHistory   []string
 
 	addForm      addform.Model
 	addFormTask  *task.Task // non-nil when p opens addform on an existing task
@@ -160,15 +168,27 @@ func NewApp(cfg config.Config) App {
 		loading:   !hasCache,
 		cachePath: cachePath,
 		spinner:   sp,
+		hermesSection:  nil,
+		hermesClient:   hermes.NewClient(cfg.Hermes.Endpoint),
+		chatInput:      "",
+		chatHistory:    nil,
 	}
 }
 
 func (a App) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		LoadCacheCmd(a.cachePath),
 		LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath),
 		a.spinner.Tick,
-	)
+	}
+
+	// Load Hermes session context on startup if configured
+	if a.ctx.Config.Hermes.Endpoint != "" {
+		repo := a.ctx.Config.Hermes.Repo
+		cmds = append(cmds, LoadContextCmd(a.ctx.Config.Hermes.Endpoint, repo))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -277,6 +297,20 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.spinner.Tick,
 		)
 
+	case hermessection.ContextBriefingMsg:
+		if a.hermesSection == nil {
+			hs := hermessection.New(a.ctx.VaultPath(), a.ctx.Config.Hermes.Repo)
+			a.hermesSection = hs
+			// Insert as first section
+			a.sections = append([]section.Section{hs}, a.sections...)
+			a.activeTab = 0
+			a.cursor = 0
+		}
+		a.hermesSection.SetBriefing(msg.Briefing)
+
+	case hermes.ChatResponseMsg:
+		a.chatHistory = append(a.chatHistory, "🤖 "+msg.Reply)
+
 	case spinner.TickMsg:
 		if a.loading {
 			var cmd tea.Cmd
@@ -297,6 +331,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.editForm, cmd = a.editForm.Update(msg)
 		return a, cmd
+	}
+	if a.mode == modeChat {
+		return a.handleChatKey(msg)
 	}
 
 	return a, nil
@@ -425,6 +462,11 @@ func (a App) handleBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.Reload):
 		a.loading = true
 		return a, LoadTasksCmd(a.ctx.VaultPath(), a.ctx.Config.Vault.TaskFilesFolder, a.cachePath)
+
+	case key.Matches(msg, a.keys.Chat):
+		a.mode = modeChat
+		a.chatInput = ""
+		return a, nil
 	}
 
 	return a, nil
@@ -516,6 +558,31 @@ func (a App) handleEditFormKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return a, cmd
+}
+
+func (a App) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, a.keys.Escape):
+		a.mode = modeBrowser
+		a.chatInput = ""
+		return a, nil
+	case key.Matches(msg, a.keys.ChatSubmit):
+		if a.chatInput != "" && a.hermesClient != nil {
+			msg := a.chatInput
+			a.chatHistory = append(a.chatHistory, "🧑 "+msg)
+			a.chatInput = ""
+			return a, ChatCmd(a.hermesClient, a.ctx.Config.Hermes.Repo, msg)
+		}
+	case key.Matches(msg, a.keys.Backspace):
+		if len(a.chatInput) > 0 {
+			a.chatInput = a.chatInput[:len(a.chatInput)-1]
+		}
+	default:
+		if len(msg.Runes) > 0 {
+			a.chatInput += string(msg.Runes)
+		}
+	}
+	return a, nil
 }
 
 func (a *App) activeSection() section.Section {
@@ -625,6 +692,15 @@ func (a App) View() string {
 		b.WriteString("\n")
 		b.WriteString(a.editForm.View())
 		b.WriteString("\n")
+	} else if a.mode == modeChat {
+		b.WriteString("\n")
+		b.WriteString(titleStyle.Render("💬 Hermes Chat"))
+		b.WriteString("\n")
+		for _, h := range a.chatHistory {
+			b.WriteString("  " + h + "\n")
+		}
+		b.WriteString("\n  > " + a.chatInput + "█\n")
+		b.WriteString(dimStyle.Render("    esc: back · enter: send\n"))
 	}
 
 	if a.message != "" {

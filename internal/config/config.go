@@ -27,6 +27,11 @@ type CalDAV struct {
 	AutoPush bool   `toml:"auto_push"`
 }
 
+type Hermes struct {
+	Endpoint string `toml:"endpoint"` // URL of the Hermes Context API
+	Repo     string `toml:"repo"`     // default git repo name for context queries
+}
+
 type TabConfig struct {
 	Name      string   `toml:"name"`
 	Filter    string   `toml:"filter"`     // open|folder|file|timewindow|rolling|overdue|caldav|tag|wikilink
@@ -49,6 +54,7 @@ type UI struct {
 type Config struct {
 	Vault  Vault  `toml:"vault"`
 	CalDAV CalDAV `toml:"caldav"`
+	Hermes Hermes `toml:"hermes"`
 	UI     UI     `toml:"ui"`
 }
 

@@ -22,6 +22,8 @@ type KeyMap struct {
 	Escape     key.Binding
 	Backspace  key.Binding
 	Enter      key.Binding
+	Chat       key.Binding
+	ChatSubmit key.Binding
 }
 
 var DefaultKeyMap = KeyMap{
@@ -99,9 +101,16 @@ var DefaultKeyMap = KeyMap{
 	Enter: key.NewBinding(
 		key.WithKeys("enter"),
 	),
+	Chat: key.NewBinding(
+		key.WithKeys("c"),
+		key.WithHelp("c", "chat mode"),
+	),
+	ChatSubmit: key.NewBinding(
+		key.WithKeys("enter"),
+	),
 }
 
 // BrowserHelp returns the help text for the browser mode status bar.
 func BrowserHelp() string {
-	return "  ↑/k ↓/j navigate  enter: toggle  a: add  e: edit  ctrl+g: open  p: push  R: pull  /: filter  v: view  tab: switch  r: reload  q: quit"
+	return "  ↑/k ↓/j navigate  enter: toggle  a: add  e: edit  c: chat  ctrl+g: open  p: push  R: pull  /: filter  v: view  tab: switch  r: reload  q: quit"
 }

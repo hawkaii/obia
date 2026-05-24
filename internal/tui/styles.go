@@ -66,4 +66,7 @@ var (
 
 	messageStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("78"))
+
+	dimStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245"))
 )

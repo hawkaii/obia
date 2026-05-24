@@ -12,8 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/hawkaii/obia/internal/caldav"
 	"github.com/hawkaii/obia/internal/config"
+	"github.com/hawkaii/obia/internal/hermes"
 	"github.com/hawkaii/obia/internal/task"
 	"github.com/hawkaii/obia/internal/vault"
+	"github.com/hawkaii/obia/internal/tui/components/hermessection"
 )
 
 // LoadCacheCmd reads the task cache from disk and returns it instantly.
@@ -323,5 +325,25 @@ func EditTaskCmd(
 		}
 
 		return TaskEditedMsg{Task: t, NewSummary: newSummary, Reload: true, CalDAVErr: caldavErr}
+	}
+}
+
+// LoadContextCmd fetches session context from the Hermes API.
+func LoadContextCmd(endpoint, repo string) tea.Cmd {
+	return func() tea.Msg {
+		client := hermes.NewClient(endpoint)
+		ctx, err := client.FetchContext(repo)
+		return hermessection.ContextBriefingMsg{Briefing: ctx, Err: err}
+	}
+}
+
+// ChatCmd sends a message to the Hermes chat API.
+func ChatCmd(client *hermes.Client, repo, message string) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.SendChat(repo, message)
+		if err != nil {
+			return hermes.ChatResponseMsg{Reply: "Error: " + err.Error(), Err: err}
+		}
+		return hermes.ChatResponseMsg{Reply: resp.Reply, Err: nil}
 	}
 }
